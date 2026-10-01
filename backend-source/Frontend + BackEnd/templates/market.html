@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Exchange | Market</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    /* Modern Glassmorphic Market */
+    .market-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    
+    .status-locked {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 0.8rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .detail-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 25px;
+    }
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    
+    .info-row:last-child {
+      border-bottom: none;
+    }
+    
+    .info-label {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    
+    .info-value {
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      margin: 15px 0;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+      width: 100%;
+      transition: width 1s linear;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <main class="glass-card" style="margin-bottom: 100px;">
+      <div class="market-header">
+        <h1 style="font-size: 1.3rem; margin:0;">📊 Market</h1>
+        <div class="status-locked">
+          🔒 LOCKED
+        </div>
+      </div>
+      
+      {% if no_position %}
+      <div style="text-align: center; padding: 40px 10px;">
+        <div style="font-size: 3rem; margin-bottom: 15px;">📉</div>
+        <h3 style="color: var(--text-primary); font-size: 1.2rem; margin-bottom: 10px;">NO ACTIVE POSITIONS</h3>
+        <p style="color: var(--text-secondary); margin-bottom: 30px;">You haven't placed any bids on the current question.</p>
+        <a href="{{ url_for('home') }}" class="btn-primary">Return to Game</a>
+      </div>
+      {% else %}
+      
+      <div class="detail-card">
+        <div class="info-row">
+          <span class="info-label">Your Answer</span>
+          <span class="info-value" style="color: #818cf8;">{{ answer }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Risk Multiplier</span>
+          <span class="info-value">{{ risk }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Capital Exposure</span>
+          <span class="info-value" style="color: #34d399;">₹{{ "{:,}".format(exposure) }}</span>
+        </div>
+      </div>
+      
+      <div style="text-align: center; padding: 10px;">
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 10px;">MARKET CLOSES IN</p>
+        <div style="font-size: 2.5rem; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums;" id="timer-display">00:00</div>
+        
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        
+        <p style="margin-top: 25px; color: var(--text-primary); font-weight: 500;">Your position is securely locked.</p>
+        <p class="blink" style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 5px;">Waiting for settlement...</p>
+      </div>
+      {% endif %}
+    </main>
+  </div>
+  
+  <!-- Bottom Navigation Bar -->
+  <nav class="bottom-nav">
+    <a href="{{ url_for('home') }}" class="nav-item">
+      <span class="nav-icon">🏠</span>
+      <span class="nav-label">Home</span>
+    </a>
+    <a href="{{ url_for('market') }}" class="nav-item active">
+      <span class="nav-icon">📊</span>
+      <span class="nav-label">Market</span>
+    </a>
+    <a href="{{ url_for('rankings') }}" class="nav-item">
+      <span class="nav-icon">🏆</span>
+      <span class="nav-label">Rankings</span>
+    </a>
+    <a href="{{ url_for('profile') }}" class="nav-item">
+      <span class="nav-icon">📜</span>
+      <span class="nav-label">History</span>
+    </a>
+  </nav>
+
+  <style>
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+    .blink {
+      animation: blink 1.5s infinite;
+    }
+  </style>
+
+  <script>
+    {% if not no_position %}
+    const deadline = parseFloat("{{ deadline }}");
+    const serverTimeOffset = Date.now() / 1000 - parseFloat("{{ server_time }}");
+    const displayEl = document.getElementById('timer-display');
+    const fillEl = document.getElementById('progress-fill');
+    
+    // Total duration is typically 15s. We don't have it exactly here, but we can estimate the initial width
+    // Actually, just calculating percentage based on max 15s.
+    const maxDuration = 15; 
+
+    function updateTimer() {
+      const now = Date.now() / 1000 - serverTimeOffset;
+      const remaining = Math.max(0, deadline - now);
+      
+      const seconds = Math.ceil(remaining);
+      displayEl.innerText = `00:${seconds < 10 ? '0' : ''}${seconds}`;
+      
+      const pct = (remaining / maxDuration) * 100;
+      fillEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+
+      if (remaining <= 0) {
+        window.location.href = "{{ url_for('result_page') }}";
+      }
+    }
+
+    setInterval(updateTimer, 100);
+    updateTimer();
+    {% endif %}
+  </script>
+</body>
+</html>

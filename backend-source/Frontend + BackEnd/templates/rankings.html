@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Exchange | Rankings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    /* Modern Glassmorphic Rankings */
+    .rankings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+    
+    .live-badge {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      animation: pulse 2s infinite;
+    }
+    
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      background: #ef4444;
+      border-radius: 50%;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+    
+    .leaderboard-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .leaderboard-card {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      transition: var(--transition-smooth);
+    }
+    
+    .leaderboard-card:hover {
+      background: rgba(255, 255, 255, 0.05);
+      transform: translateY(-2px);
+    }
+    
+    .leaderboard-card.current-user {
+      background: rgba(99, 102, 241, 0.1);
+      border-color: rgba(99, 102, 241, 0.3);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2), inset 0 0 10px rgba(99, 102, 241, 0.1);
+    }
+    
+    .rank-badge {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,0.05);
+      border-radius: 50%;
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin-right: 15px;
+    }
+    
+    .rank-1 .rank-badge { background: rgba(250, 204, 21, 0.15); color: #facc15; box-shadow: 0 0 15px rgba(250, 204, 21, 0.2); }
+    .rank-2 .rank-badge { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+    .rank-3 .rank-badge { background: rgba(217, 119, 6, 0.15); color: #d97706; }
+    
+    .player-details {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .player-name {
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--text-primary);
+    }
+    
+    .you-tag {
+      font-size: 0.7rem;
+      background: var(--accent-primary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+      color: white;
+    }
+    
+    .capital-display {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: #34d399;
+      text-align: right;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <main class="glass-card" style="margin-bottom: 100px;">
+      <div class="rankings-header">
+        <h1 style="font-size: 1.5rem; display: flex; align-items: center; gap: 10px;">
+          <span>🏆</span> Leaderboard
+        </h1>
+        <div class="live-badge">
+          <div class="live-dot"></div> LIVE
+        </div>
+      </div>
+      
+      <div class="leaderboard-list">
+        {% for player in players %}
+        <div class="leaderboard-card rank-{{ loop.index }} {{ 'current-user' if player.is_me else '' }}">
+          <div class="rank-badge">{{ loop.index }}</div>
+          <div class="player-details">
+            <span style="font-size: 1.5rem;">{{ player.avatar }}</span>
+            <div style="display: flex; flex-direction: column;">
+              <span class="player-name">
+                {{ player.name }}
+                {% if player.is_me %}<span class="you-tag">YOU</span>{% endif %}
+              </span>
+            </div>
+          </div>
+          <div class="capital-display">
+            ₹{{ "{:,}".format(player.capital) }}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </main>
+  </div>
+  
+  <!-- Bottom Navigation Bar -->
+  <nav class="bottom-nav">
+    <a href="{{ url_for('home') }}" class="nav-item">
+      <span class="nav-icon">🏠</span>
+      <span class="nav-label">Home</span>
+    </a>
+    <a href="{{ url_for('market') }}" class="nav-item">
+      <span class="nav-icon">📊</span>
+      <span class="nav-label">Market</span>
+    </a>
+    <a href="{{ url_for('rankings') }}" class="nav-item active">
+      <span class="nav-icon">🏆</span>
+      <span class="nav-label">Rankings</span>
+    </a>
+    <a href="{{ url_for('profile') }}" class="nav-item">
+      <span class="nav-icon">📜</span>
+      <span class="nav-label">History</span>
+    </a>
+  </nav>
+
+  <style>
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+    .blink {
+      animation: blink 1.5s infinite;
+    }
+  </style>
+</body>
+</html>

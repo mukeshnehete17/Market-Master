@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Exchange | My Profile</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <header class="header-bar">
+      <a href="{{ url_for('home') }}" class="brand">
+        <div class="brand-icon">⚡</div>
+        <span class="brand-text">Knowledge Exchange</span>
+      </a>
+    </header>
+
+    <main class="glass-card" style="max-width: 600px; margin: 0 auto; text-align: center;">
+      <div style="font-size: 5rem; margin-bottom: 10px;">{{ session.get('avatar', '🦊') }}</div>
+      <h1 class="question-title" style="margin-bottom: 5px;">{{ session.get('player_name', 'Guest') }}</h1>
+      <p style="color: var(--text-secondary); margin-bottom: 30px;">Playing in Game: {{ session.get('game_code', 'None') }}</p>
+
+      <div class="result-details" style="text-align: left;">
+        <div class="detail-row">
+          <span class="detail-label">Current Capital:</span>
+          <span class="detail-value correct">₹{{ session.get('capital', 1000) }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Questions Played:</span>
+          <span class="detail-value">{{ session.get('question_index', 0) }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Correct Answers:</span>
+          <span class="detail-value">{{ session.get('score', 0) }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Accuracy:</span>
+          {% set played = session.get('question_index', 0) %}
+          {% set score = session.get('score', 0) %}
+          <span class="detail-value">{{ (score / played * 100)|round(1) if played > 0 else 0 }}%</span>
+        </div>
+      </div>
+
+      <div class="actions-row" style="margin-top: 30px;">
+        <a href="{{ url_for('join') }}" class="btn-secondary">Change Avatar / Rejoin</a>
+        <a href="{{ url_for('home') }}" class="btn-primary">Return to Game</a>
+      </div>
+    </main>
+  </div>
+  
+  <!-- Bottom Navigation Bar -->
+  <nav class="bottom-nav">
+    <a href="{{ url_for('home') }}" class="nav-item">
+      <span class="nav-icon">🏠</span>
+      <span class="nav-label">Home</span>
+    </a>
+    <a href="{{ url_for('market') }}" class="nav-item">
+      <span class="nav-icon">📊</span>
+      <span class="nav-label">Market</span>
+    </a>
+    <a href="{{ url_for('rankings') }}" class="nav-item">
+      <span class="nav-icon">🏆</span>
+      <span class="nav-label">Rankings</span>
+    </a>
+    <a href="{{ url_for('profile') }}" class="nav-item active">
+      <span class="nav-icon">📜</span>
+      <span class="nav-label">History</span>
+    </a>
+  </nav>
+</body>
+</html>

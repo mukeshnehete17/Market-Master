@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Exchange | Question {{ current_num }} of {{ total_questions }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+  {% if capital <= 0 %}
+  <div id="bankrupt-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+    <div class="glass-card" style="max-width: 400px; text-align: center; padding: 40px 20px; border: 1px solid rgba(239, 68, 68, 0.3); box-shadow: 0 10px 30px rgba(239, 68, 68, 0.2);">
+      <div style="font-size: 3.5rem; margin-bottom: 15px;">💸</div>
+      <h2 style="color: var(--danger); margin-bottom: 10px; font-size: 1.8rem; font-weight: 800;">Out of Capital!</h2>
+      <p style="color: var(--text-secondary); margin-bottom: 30px; font-size: 1.05rem;">You have exhausted all your funds and can no longer place bids. Game Over!</p>
+      <a href="{{ url_for('reset_game') }}" class="btn-primary" style="display: inline-flex; justify-content: center;">Play Again</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="container">
+    <header class="header-bar">
+      <a href="{{ url_for('home') }}" class="brand">
+        <div class="brand-icon">⚡</div>
+        <span class="brand-text">Knowledge Exchange</span>
+      </a>
+      <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+        <a href="{{ url_for('profile') }}" style="text-decoration: none; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.05); padding: 4px 12px; border-radius: var(--radius-full); border: 1px solid var(--border-subtle); transition: var(--transition-smooth);">
+          <span style="font-size: 1.2rem;">{{ session.get('avatar', '🦊') }}</span>
+          <span style="font-weight: 600; color: var(--text-primary); font-size: 0.9rem;">{{ session.get('player_name', 'Guest') }}</span>
+        </a>
+        <div class="stats-badges">
+          <span class="badge">Question {{ current_num }}/{{ total_questions }}</span>
+          <span class="badge badge-score">🏆 {{ score }} pts</span>
+          <span class="badge" style="color: #34d399; border-color: rgba(52,211,153,0.3); background: rgba(52,211,153,0.08);">💰 ₹{{ capital }}</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="glass-card">
+      <div class="progress-container">
+        <div class="progress-header">
+          <span>Progress</span>
+          <span>{{ progress_pct }}%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-bar" style="width: {{ progress_pct }}%;"></div>
+        </div>
+      </div>
+
+      <div class="timer-container" id="timer-container">
+        ⏱ <span id="time-remaining">{{ duration_seconds }}</span>s remaining
+      </div>
+
+      <h1 class="question-title">{{ question.question }}</h1>
+
+      <form action="{{ url_for('submit_answer') }}" method="POST" id="quiz-form">
+        <input type="hidden" name="question_id" value="{{ question.id }}">
+
+        <div class="options-list">
+          {% set letters = ['A', 'B', 'C', 'D', 'E', 'F'] %}
+          {% for opt in question.options %}
+          <div class="option-item">
+            <input type="radio" name="option" id="opt-{{ loop.index }}" value="{{ opt }}" required>
+            <label for="opt-{{ loop.index }}" class="option-label">
+              <span class="option-tag">{{ letters[loop.index0] if loop.index0 < letters|length else loop.index }}</span>
+                  <span class="option-text">{{ opt }}</span>
+            </label>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="bid-section" style="margin-bottom: 24px;">
+          <div class="risk-header" style="margin-bottom: 10px;">
+            <span class="risk-title">BID AMOUNT: <span id="bid_amount_display" style="color: #34d399; font-weight: 700;">₹{{ (capital // 2) if capital > 1 else 1 }}</span></span>
+            <span class="risk-indicator" style="background: rgba(52,211,153,0.1); color: #34d399;">Available: ₹{{ capital }}</span>
+          </div>
+          <input type="range" name="bid_amount" id="bid_amount" min="1" max="{{ capital }}" value="{{ (capital // 2) if capital > 1 else 1 }}" oninput="document.getElementById('bid_amount_display').innerText = '₹' + this.value" style="width: 100%; cursor: pointer; accent-color: var(--accent-primary);">
+          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-top: 5px;">
+            <span>₹1</span>
+            <span>₹{{ capital }}</span>
+          </div>
+        </div>
+
+        <div class="risk-section">
+          <div class="risk-header">
+            <span class="risk-title">SELECT RISK MULTIPLIER</span>
+            <span class="risk-indicator" id="selected-risk-indicator">Selected: No Risk</span>
+          </div>
+          <div class="risk-grid">
+            <label class="risk-card">
+              <input type="radio" name="risk_multiplier" value="0" checked onchange="updateRisk(0)">
+              <span class="risk-card-content">NO RISK</span>
+            </label>
+            <label class="risk-card">
+              <input type="radio" name="risk_multiplier" value="2" onchange="updateRisk(2)">
+              <span class="risk-card-content">2X</span>
+            </label>
+            <label class="risk-card">
+              <input type="radio" name="risk_multiplier" value="3" onchange="updateRisk(3)">
+              <span class="risk-card-content">3X</span>
+            </label>
+            <label class="risk-card">
+              <input type="radio" name="risk_multiplier" value="5" onchange="updateRisk(5)">
+              <span class="risk-card-content">5X</span>
+            </label>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-primary" id="submit-btn">
+          <span>Submit Position</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </form>
+    </main>
+
+    <footer class="footer-bar" style="margin-bottom: 80px;">
+      <a href="{{ url_for('reset_game') }}" class="btn-secondary"
+        style="font-size: 0.8rem; padding: 6px 14px;">↺ Restart Quiz</a>
+    </footer>
+  </div>
+
+  <!-- Bottom Navigation Bar -->
+  <nav class="bottom-nav">
+    <a href="{{ url_for('home') }}" class="nav-item active">
+      <span class="nav-icon">🏠</span>
+      <span class="nav-label">Home</span>
+    </a>
+    <a href="{{ url_for('market') }}" class="nav-item">
+      <span class="nav-icon">📊</span>
+      <span class="nav-label">Market</span>
+    </a>
+    <a href="{{ url_for('rankings') }}" class="nav-item">
+      <span class="nav-icon">🏆</span>
+      <span class="nav-label">Rankings</span>
+    </a>
+    <a href="{{ url_for('profile') }}" class="nav-item">
+      <span class="nav-icon">📜</span>
+      <span class="nav-label">History</span>
+    </a>
+  </nav>
+
+  <script>
+    function updateRisk(val) {
+      const display = document.getElementById('selected-risk-indicator');
+      if (val === 0) {
+        display.innerText = 'Selected: No Risk';
+      } else {
+        display.innerText = `Selected: ${val}x`;
+      }
+    }
+
+    // Timer logic
+    const deadline = parseFloat("{{ deadline }}");
+    const serverTimeOffset = Date.now() / 1000 - parseFloat("{{ server_time }}");
+    const displayEl = document.getElementById('time-remaining');
+    const timerContainer = document.getElementById('timer-container');
+    const form = document.getElementById('quiz-form');
+    const submitBtn = document.getElementById('submit-btn');
+
+    let submitted = false;
+
+    form.addEventListener('submit', function(e) {
+      if (parseFloat("{{ capital }}") <= 0) {
+        e.preventDefault();
+        return false;
+      }
+      
+      if (submitted) {
+        e.preventDefault();
+        return false;
+      }
+      submitted = true;
+      submitBtn.innerHTML = '<span>Submitting...</span>';
+      submitBtn.style.opacity = '0.7';
+      submitBtn.style.cursor = 'not-allowed';
+      // DO NOT disable inputs here, otherwise they won't be sent in the POST request!
+    });
+
+    function updateTimer() {
+      const now = Date.now() / 1000 - serverTimeOffset;
+      const remaining = Math.max(0, Math.ceil(deadline - now));
+      displayEl.innerText = remaining;
+
+      if (remaining <= 0) {
+        if (timerInterval) clearInterval(timerInterval);
+        timerContainer.style.color = 'var(--danger)';
+        displayEl.innerText = "0";
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span>Time Expired</span>';
+        
+        const inputs = form.querySelectorAll('input');
+        inputs.forEach(i => i.disabled = true);
+      }
+    }
+
+    let timerInterval = setInterval(updateTimer, 1000);
+    updateTimer(); // Call immediately to prevent 1-second visual lag
+  </script>
+</body>
+
+</html>

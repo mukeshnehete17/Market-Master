@@ -1,0 +1,91 @@
+.liquid-metal-button {
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  place-items: center;
+  min-width: 142px;
+  height: 46px;
+  padding: 0 22px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 100px;
+  background: linear-gradient(
+    125deg,
+    #767676,
+    #f2f2f2 28%,
+    #606060 48%,
+    #dedede 72%,
+    #8b8b8b
+  );
+  color: #e4e4e4;
+  box-shadow:
+    0 0 0 1px #0005,
+    0 9px 9px #0002,
+    0 2px 5px #0003;
+  cursor: pointer;
+  transition:
+    transform 150ms,
+    box-shadow 150ms;
+}
+.liquid-metal-button::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  z-index: 1;
+  border-radius: inherit;
+  background: linear-gradient(#202020, #000);
+}
+.metal-surface,
+.metal-surface canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.metal-label {
+  z-index: 2;
+  font-family: 'Space Mono', 'Courier Prime', 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.liquid-metal-button:hover {
+  box-shadow:
+    0 0 0 1px #0006,
+    0 4px 4px #0003;
+}
+.liquid-metal-button:active {
+  transform: translateY(1px) scale(0.98);
+}
+.metal-ripple {
+  position: absolute;
+  z-index: 3;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff80, #ffffff00 70%);
+  pointer-events: none;
+  animation: metal-ripple 600ms ease-out forwards;
+}
+@keyframes metal-ripple {
+  from {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.6;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(4);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .liquid-metal-button {
+    transition: none;
+  }
+  .metal-ripple {
+    display: none;
+  }
+}

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Exchange | Result</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <style>
+    @keyframes shake {
+      0% { transform: translate(1px, 1px) rotate(0deg); }
+      10% { transform: translate(-1px, -2px) rotate(-1deg); }
+      20% { transform: translate(-3px, 0px) rotate(1deg); }
+      30% { transform: translate(3px, 2px) rotate(0deg); }
+      40% { transform: translate(1px, -1px) rotate(1deg); }
+      50% { transform: translate(-1px, 2px) rotate(-1deg); }
+      60% { transform: translate(-3px, 1px) rotate(0deg); }
+      70% { transform: translate(3px, 1px) rotate(-1deg); }
+      80% { transform: translate(-1px, -1px) rotate(1deg); }
+      90% { transform: translate(1px, 2px) rotate(0deg); }
+      100% { transform: translate(1px, -2px) rotate(-1deg); }
+    }
+    .shake-animation {
+      animation: shake 0.5s;
+    }
+    
+    #header-capital {
+      transition: transform 0.2s ease, color 0.5s ease;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header-bar">
+      <a href="{{ url_for('home') }}" class="brand">
+        <div class="brand-icon">⚡</div>
+        <span class="brand-text">Knowledge Exchange</span>
+      </a>
+      <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+        <a href="{{ url_for('profile') }}" style="text-decoration: none; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.05); padding: 4px 12px; border-radius: var(--radius-full); border: 1px solid var(--border-subtle); transition: var(--transition-smooth);">
+          <span style="font-size: 1.2rem;">{{ session.get('avatar', '🦊') }}</span>
+          <span style="font-weight: 600; color: var(--text-primary); font-size: 0.9rem;">{{ session.get('player_name', 'Guest') }}</span>
+        </a>
+        <div class="stats-badges">
+          <span class="badge">Question {{ current_num }}/{{ total_questions }}</span>
+          <span class="badge badge-score">🏆 {{ score }} pts</span>
+          <span class="badge" id="header-capital" style="color: #34d399; border-color: rgba(52,211,153,0.3); background: rgba(52,211,153,0.08);">💰 ₹{{ result.previous_capital if result.previous_capital is defined else capital }}</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="glass-card">
+      <div class="result-header">
+        {% if result.is_correct %}
+          <div class="status-icon-wrapper status-icon-correct">
+            ✓
+          </div>
+          <h1 class="result-title correct">Spot On!</h1>
+          <p class="detail-label">You nailed this question.</p>
+        {% else %}
+          <div class="status-icon-wrapper status-icon-incorrect">
+            ✕
+          </div>
+          <h1 class="result-title incorrect">Not Quite!</h1>
+          <p class="detail-label">Don't worry, every mistake is a chance to learn.</p>
+        {% endif %}
+      </div>
+
+      <div class="result-details">
+        <div class="detail-row">
+          <span class="detail-label">Your Answer:</span>
+          <span class="detail-value {{ 'correct' if result.is_correct else 'incorrect' }}">
+            {{ result.user_answer }}
+          </span>
+        </div>
+        {% if not result.is_correct %}
+        <div class="detail-row">
+          <span class="detail-label">Correct Answer:</span>
+          <span class="detail-value correct">{{ result.correct_answer }}</span>
+        </div>
+        {% endif %}
+        
+        {% if result.financial_change %}
+        <div class="detail-row">
+          <span class="detail-label">Financial Change:</span>
+          <span class="detail-value {{ 'correct' if result.is_correct else 'incorrect' if result.financial_change != 'No Loss' else '' }}">{{ result.financial_change }}</span>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if result.explanation %}
+        <div class="explanation-card" style="margin-bottom: 28px;">
+          <div class="explanation-title">
+            <span>💡</span> Explanation
+          </div>
+          <p>{{ result.explanation }}</p>
+        </div>
+      {% endif %}
+
+      <div class="actions-row">
+        <a href="{{ url_for('next_question') }}" class="btn-primary">
+          {% if is_last_question %}
+            <span>View Final Results</span>
+          {% else %}
+            <span>Next Question</span>
+          {% endif %}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </a>
+      </div>
+    </main>
+
+    <footer class="footer-bar" style="margin-bottom: 80px;">
+      <a href="{{ url_for('reset_game') }}" class="btn-secondary" style="font-size: 0.8rem; padding: 6px 14px;">↺ Restart Quiz</a>
+    </footer>
+  </div>
+
+  <!-- Bottom Navigation Bar -->
+  <nav class="bottom-nav">
+    <a href="{{ url_for('home') }}" class="nav-item">
+      <span class="nav-icon">🏠</span>
+      <span class="nav-label">Home</span>
+    </a>
+    <a href="{{ url_for('market') }}" class="nav-item">
+      <span class="nav-icon">📊</span>
+      <span class="nav-label">Market</span>
+    </a>
+    <a href="{{ url_for('rankings') }}" class="nav-item">
+      <span class="nav-icon">🏆</span>
+      <span class="nav-label">Rankings</span>
+    </a>
+    <a href="{{ url_for('profile') }}" class="nav-item">
+      <span class="nav-icon">📜</span>
+      <span class="nav-label">History</span>
+    </a>
+  </nav>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const isCorrect = {{ 'true' if result.is_correct else 'false' }};
+      const prevCapital = {{ result.previous_capital | default(capital) }};
+      const newCapital = {{ result.new_capital | default(capital) }};
+      const hasFinancialChange = prevCapital !== newCapital;
+      
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const audioCtx = new AudioContext();
+
+      function playWinSound() {
+          if (audioCtx.state === 'suspended') audioCtx.resume();
+          const playNote = (freq, startTime, duration) => {
+              const osc = audioCtx.createOscillator();
+              const gain = audioCtx.createGain();
+              osc.connect(gain);
+              gain.connect(audioCtx.destination);
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(freq, startTime);
+              gain.gain.setValueAtTime(0, startTime);
+              gain.gain.linearRampToValueAtTime(0.3, startTime + 0.05);
+              gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+              osc.start(startTime);
+              osc.stop(startTime + duration);
+          };
+          const now = audioCtx.currentTime;
+          playNote(440, now, 0.2); // A4
+          playNote(554.37, now + 0.15, 0.2); // C#5
+          playNote(659.25, now + 0.3, 0.2); // E5
+          playNote(880, now + 0.45, 0.6); // A5
+      }
+
+      function playLoseSound() {
+          if (audioCtx.state === 'suspended') audioCtx.resume();
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.type = 'sawtooth';
+          const now = audioCtx.currentTime;
+          osc.frequency.setValueAtTime(150, now);
+          osc.frequency.exponentialRampToValueAtTime(50, now + 0.6);
+          gain.gain.setValueAtTime(0.5, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+          osc.start(now);
+          osc.stop(now + 0.6);
+      }
+
+      function animateCapital(start, end) {
+          const el = document.getElementById('header-capital');
+          if (!el) return;
+          const duration = 2000;
+          const startTime = performance.now();
+          
+          if(end < start) {
+              el.style.color = '#ef4444';
+          }
+          
+          function update(time) {
+              let elapsed = time - startTime;
+              if (elapsed > duration) elapsed = duration;
+              
+              const progress = 1 - Math.pow(1 - (elapsed / duration), 3);
+              const current = Math.round(start + (end - start) * progress);
+              
+              el.innerHTML = `💰 ₹${current.toLocaleString()}`;
+              
+              if (progress < 1) {
+                  requestAnimationFrame(update);
+              } else {
+                  el.style.transform = 'scale(1.2)';
+                  setTimeout(() => { 
+                      el.style.transform = 'scale(1)'; 
+                      if(end < start) el.style.color = '#34d399'; // reset color
+                  }, 300);
+              }
+          }
+          requestAnimationFrame(update);
+      }
+
+      // We need a user interaction to play audio in most modern browsers.
+      // But since they just clicked a button on the previous page to submit, 
+      // sometimes audio is allowed. We will attempt it.
+      
+      setTimeout(() => {
+          if (isCorrect) {
+              playWinSound();
+              confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#34d399', '#6366f1', '#f59e0b']
+              });
+          } else if (hasFinancialChange) {
+              playLoseSound();
+              document.querySelector('.glass-card').classList.add('shake-animation');
+          }
+          
+          if (hasFinancialChange) {
+              animateCapital(prevCapital, newCapital);
+          }
+      }, 300);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Exchange | Join Game</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .input-field {
+      width: 100%;
+      padding: 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+      font-size: 1.1rem;
+      margin-bottom: 20px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-field:focus {
+      border-color: var(--accent-primary);
+    }
+    .avatar-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+      gap: 12px;
+      margin-bottom: 30px;
+    }
+    .avatar-card {
+      position: relative;
+    }
+    .avatar-card input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+      z-index: 2;
+    }
+    .avatar-content {
+      font-size: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      transition: var(--transition-smooth);
+      height: 100%;
+      aspect-ratio: 1;
+    }
+    .avatar-card:hover .avatar-content {
+      background: var(--bg-card-hover);
+      border-color: var(--border-hover);
+    }
+    .avatar-card input[type="radio"]:checked + .avatar-content {
+      background: var(--bg-card-selected);
+      border-color: var(--border-selected);
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header-bar" style="justify-content: center;">
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        <span class="brand-text">Knowledge Exchange</span>
+      </div>
+    </header>
+
+    <main class="glass-card" style="max-width: 500px; margin: 0 auto;">
+      <h1 class="question-title" style="text-align: center; margin-bottom: 30px;">Join a Game</h1>
+
+      <form action="{{ url_for('join') }}" method="POST">
+        <label style="display: block; font-weight: 600; color: var(--text-secondary); margin-bottom: 10px;">GAME CODE</label>
+        <input type="text" name="game_code" class="input-field" placeholder="Enter Game PIN" required>
+
+        <label style="display: block; font-weight: 600; color: var(--text-secondary); margin-bottom: 10px;">NICKNAME</label>
+        <input type="text" name="player_name" class="input-field" placeholder="Enter your name" required>
+
+        <label style="display: block; font-weight: 600; color: var(--text-secondary); margin-bottom: 15px;">SELECT YOUR AVATAR</label>
+        <div class="avatar-grid">
+          {% set avatars = ['🦊', '🐱', '🐼', '🐯', '🐸', '🦄', '🐙', '🦖'] %}
+          {% for avatar in avatars %}
+          <label class="avatar-card">
+            <input type="radio" name="avatar" value="{{ avatar }}" {{ 'checked' if loop.first else '' }}>
+            <span class="avatar-content">{{ avatar }}</span>
+          </label>
+          {% endfor %}
+        </div>
+
+        <button type="submit" class="btn-primary" style="margin-top: 10px;">
+          <span>Enter Game</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </button>
+      </form>
+    </main>
+  </div>
+</body>
+</html>
