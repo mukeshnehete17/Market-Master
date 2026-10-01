@@ -74,7 +74,7 @@ export default function JoinGame({ onJoin, illuminateId, onOpenLogin }: Props) {
             </div>
             <h2>Enter the simulation</h2>
             <p className="join-sub">
-              Starting Capital: <strong>₹1,000</strong> · 1x / 2x / 3x Risk
+              Starting Capital: <strong>₹1,000</strong> · No Risk / 2x / 3x / 5x
             </p>
           </div>
 

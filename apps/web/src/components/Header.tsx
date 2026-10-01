@@ -112,8 +112,8 @@ export default function Header({
 
                   <div className="island-middle-group">
                     <span className="island-capital-risk-text">
-                      Starting Capital: <strong>₹1,000</strong> · 1x / 2x / 3x
-                      Risk
+                      Starting Capital: <strong>₹1,000</strong> · No Risk / 2x /
+                      3x / 5x
                     </span>
                   </div>
 

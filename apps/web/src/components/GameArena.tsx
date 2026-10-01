@@ -85,44 +85,34 @@ const QUESTIONS: Question[] = [
   },
 ];
 
-type RiskLevel = 'none' | '1x' | '2x' | '3x';
+type RiskLevel = 'none' | '2x' | '3x' | '5x';
 
 interface RiskConfig {
   label: string;
   name: string;
   multiplier: number;
-  baseStake: number;
-  description: string;
 }
 
 const RISK_TIERS: Record<RiskLevel, RiskConfig> = {
   none: {
     label: 'No Risk',
-    name: '0x Safe Mode',
+    name: 'No Risk (0x)',
     multiplier: 0,
-    baseStake: 0,
-    description: 'Win: +₹100 | Risk: ₹0',
-  },
-  '1x': {
-    label: '1x Risk',
-    name: '1x Standard',
-    multiplier: 1,
-    baseStake: 200,
-    description: 'Win: +₹200 | Risk: -₹200',
   },
   '2x': {
     label: '2x Risk',
-    name: '2x Aggressive',
+    name: '2x Multiplier',
     multiplier: 2,
-    baseStake: 350,
-    description: 'Win: +₹700 | Risk: -₹350',
   },
   '3x': {
     label: '3x Risk',
-    name: '3x High Conviction',
+    name: '3x Multiplier',
     multiplier: 3,
-    baseStake: 500,
-    description: 'Win: +₹1,500 | Risk: -₹500',
+  },
+  '5x': {
+    label: '5x Risk',
+    name: '5x High Conviction',
+    multiplier: 5,
   },
 };
 
@@ -133,6 +123,7 @@ interface Props {
 
 export function GameArena({ callsign, onExit }: Props) {
   const [capital, setCapital] = useState(1000);
+  const [bidAmount, setBidAmount] = useState(200);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [selectedRisk, setSelectedRisk] = useState<RiskLevel>('none');
@@ -146,19 +137,19 @@ export function GameArena({ callsign, onExit }: Props) {
   const [timeLeft, setTimeLeft] = useState(15);
 
   const currentQuestion = QUESTIONS[currentIndex];
+  const effectiveBid = Math.min(capital, Math.max(10, bidAmount));
 
-  const calculateStake = (risk: RiskLevel) => {
-    const config = RISK_TIERS[risk];
-    if (config.baseStake === 0) return 0;
-    return Math.min(capital, config.baseStake);
+  const calculateWinBenefit = (risk: RiskLevel, bid: number) => {
+    if (risk === 'none') return 100;
+    if (risk === '2x') return bid * 2;
+    if (risk === '3x') return bid * 3;
+    if (risk === '5x') return bid * 5;
+    return 100;
   };
 
-  const calculateReward = (risk: RiskLevel, stake: number) => {
-    if (risk === 'none') return 100;
-    if (risk === '1x') return stake;
-    if (risk === '2x') return stake * 2;
-    if (risk === '3x') return stake * 3;
-    return 100;
+  const calculateDownside = (risk: RiskLevel, bid: number) => {
+    if (risk === 'none') return 0;
+    return bid;
   };
 
   // 15-second countdown timer per question
@@ -182,17 +173,18 @@ export function GameArena({ callsign, onExit }: Props) {
   }, [currentIndex, gameState]);
 
   const resolveRound = (chosen: number | null, timedOut = false) => {
-    const stake = calculateStake(selectedRisk);
+    const currentBid = effectiveBid;
     if (chosen !== null && chosen === currentQuestion.correctOption) {
-      const reward = calculateReward(selectedRisk, stake);
+      const reward = calculateWinBenefit(selectedRisk, currentBid);
       setCapital((prev) => prev + reward);
       setLastDelta(reward);
       setIsWin(true);
       setIsTimeout(false);
       setConfettiTrigger(true);
     } else {
-      setCapital((prev) => Math.max(0, prev - stake));
-      setLastDelta(stake);
+      const loss = calculateDownside(selectedRisk, currentBid);
+      setCapital((prev) => Math.max(0, prev - loss));
+      setLastDelta(loss);
       setIsWin(false);
       setIsTimeout(timedOut);
       setConfettiTrigger(false);
@@ -234,6 +226,7 @@ export function GameArena({ callsign, onExit }: Props) {
 
   const handleRestart = () => {
     setCapital(1000);
+    setBidAmount(200);
     setCurrentIndex(0);
     setSelectedOption(null);
     setSelectedRisk('none');
@@ -244,8 +237,8 @@ export function GameArena({ callsign, onExit }: Props) {
     setTimeLeft(15);
   };
 
-  const currentStake = calculateStake(selectedRisk);
-  const potentialWin = calculateReward(selectedRisk, currentStake);
+  const potentialWin = calculateWinBenefit(selectedRisk, effectiveBid);
+  const potentialLoss = calculateDownside(selectedRisk, effectiveBid);
 
   return (
     <div className="arena-container">
@@ -328,22 +321,46 @@ export function GameArena({ callsign, onExit }: Props) {
             })}
           </div>
 
-          {/* Risk Selector with Liquid Glass Buttons */}
+          {/* Bid Amount + Risk Selector */}
           <div className="arena-risk-section">
+            {/* Bid Amount Input */}
+            <div className="bid-row">
+              <label htmlFor="bid-input" className="risk-title">
+                YOUR BID AMOUNT
+              </label>
+              <div className="bid-input-wrap">
+                <span className="bid-currency">₹</span>
+                <input
+                  id="bid-input"
+                  type="number"
+                  min={10}
+                  max={capital}
+                  step={10}
+                  value={bidAmount}
+                  onChange={(e) =>
+                    setBidAmount(
+                      Math.min(capital, Math.max(10, Number(e.target.value))),
+                    )
+                  }
+                  className="bid-amount-input"
+                />
+              </div>
+            </div>
+
             <div className="risk-header">
               <span className="risk-title">SELECT RISK MULTIPLIER</span>
               <span className="risk-payoff-preview">
                 {selectedRisk === 'none'
-                  ? 'Safe Gain: +₹100 | Capital at Risk: ₹0'
-                  : `Potential Gain: +₹${potentialWin.toLocaleString()} | Risk: -₹${currentStake.toLocaleString()}`}
+                  ? 'Safe Gain: +₹100 | Bid at Risk: ₹0'
+                  : `Win: +₹${potentialWin.toLocaleString()} | Lose: -₹${potentialLoss.toLocaleString()}`}
               </span>
             </div>
 
             <div className="risk-pills-row">
-              {(['none', '1x', '2x', '3x'] as RiskLevel[]).map((tier) => {
+              {(['none', '2x', '3x', '5x'] as RiskLevel[]).map((tier) => {
                 const config = RISK_TIERS[tier];
                 const active = selectedRisk === tier;
-                const disabled = capital < config.baseStake && tier !== 'none';
+                const disabled = tier !== 'none' && effectiveBid > capital;
 
                 return (
                   <LiquidGlassButton
@@ -353,7 +370,11 @@ export function GameArena({ callsign, onExit }: Props) {
                     onClick={() => setSelectedRisk(tier)}
                   >
                     <span className="risk-pill-name">{config.label}</span>
-                    <span className="risk-pill-desc">{config.description}</span>
+                    <span className="risk-pill-desc">
+                      {tier === 'none'
+                        ? 'Win: +₹100'
+                        : `Win: +₹${calculateWinBenefit(tier, effectiveBid).toLocaleString()}`}
+                    </span>
                   </LiquidGlassButton>
                 );
               })}
@@ -367,7 +388,7 @@ export function GameArena({ callsign, onExit }: Props) {
               label={
                 selectedOption === null
                   ? `Choose an option (${timeLeft}s remaining)`
-                  : `Confirm Position (${RISK_TIERS[selectedRisk].label})`
+                  : `Confirm — Bid ₹${effectiveBid} · ${RISK_TIERS[selectedRisk].label}`
               }
               onClick={handleLockIn}
             />

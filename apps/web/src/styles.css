@@ -915,6 +915,49 @@ main {
   gap: 14px;
 }
 
+/* Bid Amount Row */
+.bid-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bid-input-wrap {
+  display: flex;
+  align-items: center;
+  border: 1.5px solid #000000;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.bid-currency {
+  padding: 8px 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #000000;
+  border-right: 1.5px solid #000000;
+  background: #f7f7f7;
+}
+
+.bid-amount-input {
+  border: 0;
+  outline: none;
+  padding: 8px 12px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #000000;
+  width: 110px;
+  background: #ffffff;
+  -moz-appearance: textfield;
+}
+
+.bid-amount-input::-webkit-inner-spin-button,
+.bid-amount-input::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
 .risk-header {
   display: flex;
   justify-content: space-between;
