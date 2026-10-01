@@ -1,6 +1,3 @@
-const API_BASE_URL =
-  (import.meta as any).env?.VITE_API_BASE_URL || 'http://127.0.0.1:5000';
-
 export class ApiError extends Error {
   status: number;
   data: any;
@@ -11,6 +8,39 @@ export class ApiError extends Error {
     this.status = status;
     this.data = data;
   }
+}
+
+/**
+ * Returns the base API URL based on environment.
+ * - In local development: defaults to 'http://127.0.0.1:5000' unless overridden.
+ * - In production (e.g. Vercel): defaults to '' (same-origin /api rewrites).
+ */
+export function getApiBaseUrl(): string {
+  const envUrl = (import.meta as any).env?.VITE_API_BASE_URL;
+  if (typeof envUrl === 'string') {
+    return envUrl.trim();
+  }
+  const isDev = Boolean((import.meta as any).env?.DEV);
+  return isDev ? 'http://127.0.0.1:5000' : '';
+}
+
+/**
+ * Resolves an API endpoint into a safe, normalized URL.
+ * Avoids any accidental `/api/api/...` duplication.
+ */
+export function buildApiUrl(endpoint: string): string {
+  if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+    return endpoint;
+  }
+
+  const baseUrl = getApiBaseUrl();
+  const normalizedPath = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+  if (!baseUrl) {
+    return normalizedPath;
+  }
+
+  return `${baseUrl.replace(/\/$/, '')}${normalizedPath}`;
 }
 
 export async function apiClient<T>(
@@ -29,15 +59,13 @@ export async function apiClient<T>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const url = endpoint.startsWith('http')
-    ? endpoint
-    : `${API_BASE_URL.replace(/\/$/, '')}/${endpoint.replace(/^\//, '')}`;
+  const url = buildApiUrl(endpoint);
 
   try {
     const response = await fetch(url, {
       ...options,
       headers,
-      credentials: 'include', // Ensures Flask session cookies are shared across origins
+      credentials: 'include', // Ensures Flask session cookies are passed
     });
 
     const contentType = response.headers.get('content-type');
