@@ -1,0 +1,1285 @@
+@import 'tailwindcss';
+
+:root {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+    'Helvetica Neue', Arial, sans-serif;
+  color: #000000;
+  background-color: #ffffff;
+  font-synthesis: none;
+  --font-apple:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+    'Helvetica Neue', Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Enforce Apple bold typography universally */
+body,
+button,
+input,
+label,
+p,
+span,
+h1,
+h2,
+h3,
+a,
+div {
+  font-family: var(--font-apple);
+  font-weight: 700;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  background-color: #ffffff;
+  color: #000000;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input {
+  font: inherit;
+  font-weight: 700;
+}
+
+button,
+a,
+input {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid #000000;
+  outline-offset: 3px;
+}
+
+::selection {
+  background: #000000;
+  color: #ffffff;
+}
+
+.paper {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 0 28px;
+  background-color: transparent;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* =========================================
+   HEADER & WIDE CENTERED DYNAMIC ISLAND
+   ========================================= */
+.header-wrapper {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: transparent;
+  padding: 20px 0 10px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.header-centered-island-wrap {
+  width: 100%;
+  max-width: 860px;
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+/* Dynamic Island Display - Increased Height, Wider, & Lag-free GPU Acceleration */
+.dynamic-island {
+  background: #000000;
+  color: #ffffff;
+  border-radius: 9999px;
+  width: 100%;
+  max-width: 800px;
+  min-height: 64px;
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.3),
+    0 4px 14px rgba(0, 0, 0, 0.16);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+  will-change: max-width, min-height, border-radius;
+  transition:
+    max-width 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    min-height 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 360ms ease;
+  position: relative;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+}
+
+.dynamic-island.expanded {
+  border-radius: 32px;
+  max-width: 840px;
+  min-height: 250px;
+  align-items: stretch;
+}
+
+.island-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Collapsed Wide Dynamic Island Pill */
+.island-collapsed-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 64px;
+  padding: 14px 28px;
+  cursor: pointer;
+  user-select: none;
+  gap: 18px;
+  transition: background-color 200ms ease;
+}
+
+.island-left-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.island-sensor-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff5722;
+  flex-shrink: 0;
+}
+
+.island-sensor-dot.pulse {
+  animation: sensor-glow 2s infinite ease-in-out;
+}
+
+.island-sensor-dot.verified,
+.island-sensor-dot.active {
+  background: #10b981;
+  box-shadow: 0 0 12px #10b981;
+}
+
+@keyframes sensor-glow {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.95;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.55;
+  }
+}
+
+.island-label-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.island-badge {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+}
+
+.island-subtext {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #a1a1aa;
+}
+
+/* Middle Group in Dynamic Island */
+.island-middle-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.island-capital-risk-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e4e4e7;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.island-capital-risk-text strong {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+/* Right Group */
+.island-right-group {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.island-action-tag {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  transition:
+    background-color 200ms ease,
+    transform 200ms ease;
+}
+
+.island-collapsed-content:hover .island-action-tag {
+  background: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+/* Expanded Dynamic Island Login Form */
+.island-expanded-form {
+  padding: 22px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  animation: island-form-fade 250ms ease-out;
+}
+
+@keyframes island-form-fade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.island-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #222222;
+  padding-bottom: 12px;
+}
+
+.island-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.island-title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+}
+
+.island-close-btn {
+  background: #1c1c1e;
+  border: 0;
+  color: #888888;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.island-close-btn:hover {
+  color: #ffffff;
+  background: #2c2c2e;
+}
+
+.island-inputs-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 14px;
+  align-items: flex-end;
+}
+
+.island-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.island-field label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #aaaaaa;
+}
+
+.island-field input {
+  background: #1c1c1e;
+  border: 1px solid #333333;
+  border-radius: 10px;
+  color: #ffffff;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+  transition: border-color 150ms ease;
+}
+
+.island-field input:focus {
+  border-color: #ffffff;
+}
+
+.island-field input::placeholder {
+  color: #555555;
+}
+
+.island-auth-btn {
+  background: #ffffff;
+  color: #000000;
+  border: 0;
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  height: 44px;
+  white-space: nowrap;
+  transition:
+    transform 150ms ease,
+    opacity 150ms ease;
+}
+
+.island-auth-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.island-feedback {
+  font-size: 12px;
+  font-weight: 800;
+  color: #10b981;
+  text-align: center;
+}
+
+/* Ingame Dynamic Island */
+.island-ingame-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 14px 28px;
+  min-height: 64px;
+  width: 100%;
+}
+
+.island-trader-tag {
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #ffffff;
+}
+
+.island-separator {
+  color: #555555;
+  font-size: 12px;
+}
+
+.island-status-pill {
+  font-size: 11px;
+  font-weight: 800;
+  color: #10b981;
+  letter-spacing: 0.05em;
+}
+
+.island-leave-action {
+  background: #222222;
+  border: 0;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 6px 16px;
+  border-radius: 100px;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.island-leave-action:hover {
+  background: #333333;
+}
+
+/* =========================================
+   JOIN SECTION & AUTHENTICATION GATING
+   ========================================= */
+.join-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 70px 0 90px;
+}
+
+.join-wrapper {
+  width: 100%;
+  max-width: 500px;
+}
+
+/* Locked Card: When not logged in */
+.join-locked-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid #000000;
+  border-radius: 24px;
+  padding: 44px 36px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.locked-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border: 1px solid #000000;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  background: #fafafa;
+}
+
+.join-locked-card h2 {
+  font-size: clamp(28px, 3.4vw, 36px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0;
+  color: #000000;
+}
+
+.locked-description {
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #444444;
+  margin: 0;
+  max-width: 400px;
+}
+
+.locked-action-wrap {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.open-island-login-btn {
+  width: 100%;
+  padding: 16px 20px;
+  background: #000000;
+  color: #ffffff;
+  border: 0;
+  border-radius: 14px;
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition:
+    transform 150ms ease,
+    background-color 150ms ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+}
+
+.open-island-login-btn:hover {
+  transform: translateY(-2px);
+  background: #222222;
+}
+
+.open-island-login-btn .arrow {
+  font-size: 15px;
+}
+
+/* Unlocked Join Form */
+.join {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid #000000;
+  border-radius: 24px;
+  padding: 40px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.join-title-row {
+  margin-bottom: 4px;
+}
+
+.join-illuminate-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 1px solid #000000;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  margin-bottom: 14px;
+  background: #fafafa;
+}
+
+.join-illuminate-pill .pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+.join-title-row h2 {
+  font-size: clamp(30px, 3.6vw, 40px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0 0 8px;
+  line-height: 1.05;
+  color: #000000;
+}
+
+.join-sub {
+  font-size: 14px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.join-sub strong {
+  font-weight: 800;
+  color: #000000;
+}
+
+.input-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.input-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.join label {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #000000;
+}
+
+.join input {
+  width: 100%;
+  border: 1px solid #000000;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 14px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #000000;
+  transition: outline 100ms ease;
+}
+
+.join input:focus {
+  outline: 2px solid #000000;
+  outline-offset: 2px;
+}
+
+.join input::placeholder {
+  color: #888888;
+  font-weight: 700;
+}
+
+.join .liquid-metal-button {
+  width: 100%;
+  margin-top: 8px;
+  height: 52px;
+}
+
+/* =========================================
+   GAME ARENA & 15-SECOND COUNTDOWN TIMER
+   ========================================= */
+.arena-container {
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 36px 0 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.arena-status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 24px;
+  border: 1px solid #000000;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 16px;
+}
+
+.arena-trader-info,
+.arena-capital-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.arena-label {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #555555;
+  font-weight: 800;
+}
+
+.arena-callsign {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.arena-capital-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: #000000;
+  letter-spacing: -0.02em;
+}
+
+.arena-actions-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.arena-progress {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  font-weight: 800;
+  color: #000000;
+}
+
+.arena-exit-btn {
+  background: transparent;
+  border: 0;
+  border-bottom: 1.5px solid #000000;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 2px 0;
+  font-weight: 800;
+}
+
+.arena-exit-btn:hover {
+  opacity: 0.6;
+}
+
+/* 15-Second Timer Bar */
+.arena-timer-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.timer-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.timer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: #000000;
+  color: #ffffff;
+  border-radius: 100px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  transition: background-color 200ms ease;
+}
+
+.timer-badge.urgent {
+  background: #e11d48;
+  animation: timer-pulse 1s infinite alternate;
+}
+
+@keyframes timer-pulse {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.05);
+  }
+}
+
+.timer-icon {
+  font-size: 13px;
+}
+
+.timer-rule {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #666666;
+  text-transform: uppercase;
+}
+
+.timer-track {
+  width: 100%;
+  height: 6px;
+  background: #e5e5e5;
+  border-radius: 100px;
+  overflow: hidden;
+}
+
+.timer-fill {
+  height: 100%;
+  background: #000000;
+  border-radius: 100px;
+  transition: width 1s linear;
+}
+
+.timer-fill.urgent {
+  background: #e11d48;
+}
+
+/* Question Card */
+.arena-card {
+  border: 1px solid #000000;
+  padding: 38px 36px 42px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.arena-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #eaeaea;
+  padding-bottom: 12px;
+}
+
+.arena-category {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: #000000;
+}
+
+.arena-multiplier-badge {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  background: #000000;
+  color: #ffffff;
+  border-radius: 100px;
+}
+
+.arena-question-text {
+  font-size: clamp(22px, 2.5vw, 30px);
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: #000000;
+}
+
+/* Options Grid */
+.arena-options-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.arena-option-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid #000000;
+  background: #ffffff;
+  color: #000000;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 14px;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 120ms ease;
+}
+
+.arena-option-btn:hover {
+  background: #f7f7f7;
+  transform: translateY(-1px);
+}
+
+.arena-option-btn.selected {
+  background: #000000;
+  color: #ffffff;
+  border-color: #000000;
+}
+
+.option-letter {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+}
+
+.option-text {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+/* Risk Section with Liquid Glass Buttons */
+.arena-risk-section {
+  border-top: 1px solid #eaeaea;
+  padding-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.risk-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.risk-title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.risk-payoff-preview {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #000000;
+}
+
+.risk-pills-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.risk-pill-name {
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.risk-pill-desc {
+  font-size: 10.5px;
+  font-weight: 700;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.arena-submit-wrap {
+  margin-top: 6px;
+}
+
+.arena-submit-wrap .liquid-metal-button {
+  width: 100%;
+  height: 52px;
+}
+
+/* =========================================
+   RESULT CARD & CONGRATULATION CELEBRATION
+   ========================================= */
+.arena-result-card {
+  border: 1px solid #000000;
+  padding: 44px 40px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  animation: result-fade-in 300ms ease-out;
+}
+
+@keyframes result-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.celebration-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.celebration-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: #000000;
+  color: #ffffff;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  animation: badge-pop 400ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes badge-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.congrats-emoji {
+  font-size: 16px;
+}
+
+.congrats-heading {
+  font-size: clamp(30px, 3.8vw, 44px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 8px 0 0;
+  color: #000000;
+}
+
+.congrats-sub {
+  font-size: 14px;
+  font-weight: 700;
+  color: #333333;
+  margin: 0;
+}
+
+.payout-stat-card {
+  width: 100%;
+  max-width: 480px;
+  padding: 22px;
+  margin: 16px auto 0;
+  border: 1px solid #000000;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.payout-stat-card.win {
+  background: #fbfbfb;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+}
+
+.payout-stat-card.loss {
+  background: #fafafa;
+}
+
+.stat-label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #666666;
+  font-weight: 800;
+}
+
+.stat-amount {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.stat-amount.win {
+  color: #000000;
+}
+
+.stat-amount.loss {
+  color: #990000;
+}
+
+.stat-balance {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #222222;
+}
+
+/* Loss Hero */
+.loss-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.loss-badge {
+  display: inline-flex;
+  padding: 6px 14px;
+  border: 1.5px solid #000000;
+  border-radius: 100px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.loss-heading {
+  font-size: 38px;
+  margin: 6px 0 0;
+  font-weight: 800;
+}
+
+.loss-sub {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #555555;
+  margin: 0;
+}
+
+.result-explanation {
+  border-left: 2px solid #000000;
+  padding: 4px 0 4px 16px;
+  margin: 0 auto;
+  max-width: 600px;
+}
+
+.exp-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #000000;
+}
+
+.exp-text {
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #333333;
+  margin: 4px 0 0;
+}
+
+.arena-next-wrap {
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.arena-next-wrap .liquid-metal-button {
+  width: 100%;
+  height: 52px;
+}
+
+/* Gameover Card */
+.arena-gameover-card {
+  border: 1px solid #000000;
+  padding: 48px 36px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 28px;
+}
+
+.gameover-header h2 {
+  font-size: 40px;
+  font-weight: 800;
+  margin: 4px 0 6px;
+}
+
+.gameover-trader {
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #555555;
+  margin: 0;
+}
+
+.summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  width: 100%;
+  max-width: 580px;
+}
+
+.summary-metric-box {
+  border: 1px solid #000000;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #ffffff;
+}
+
+.summary-metric-box.highlight {
+  background: #000000;
+  color: #ffffff;
+}
+
+.metric-label {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 800;
+  opacity: 0.85;
+}
+
+.metric-val {
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.metric-val.profit {
+  color: #008800;
+}
+
+.summary-metric-box.highlight .metric-val {
+  color: #ffffff;
+}
+
+.gameover-message {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+  max-width: 480px;
+  margin: 0;
+  color: #000000;
+}
+
+.gameover-actions {
+  width: 100%;
+  max-width: 400px;
+}
+
+.gameover-actions .liquid-metal-button {
+  width: 100%;
+  height: 52px;
+}
+
+@media (max-width: 800px) {
+  .dynamic-island {
+    max-width: 100%;
+  }
+  .island-inputs-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .paper {
+    padding: 0 16px;
+  }
+  .join-section {
+    padding: 40px 0 60px;
+  }
+  .arena-card {
+    padding: 24px 20px;
+  }
+  .arena-options-grid {
+    grid-template-columns: 1fr;
+  }
+  .risk-pills-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .summary-metrics {
+    grid-template-columns: 1fr;
+  }
+}
