@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { LiquidMetalButton } from './ui/liquid-metal-button';
-import { LiquidGlassButton } from './ui/liquid-glass-button';
 import { Confetti } from './Confetti';
+import { RoundTimer } from './RoundTimer';
+import { RiskControls, RISK_TIERS, type RiskLevel } from './RiskControls';
 
 interface Question {
   id: number;
@@ -85,41 +86,55 @@ const QUESTIONS: Question[] = [
   },
 ];
 
-type RiskLevel = 'none' | '2x' | '3x' | '5x';
-
-interface RiskConfig {
-  label: string;
-  name: string;
-  multiplier: number;
-}
-
-const RISK_TIERS: Record<RiskLevel, RiskConfig> = {
-  none: {
-    label: 'No Risk',
-    name: 'No Risk (0x)',
-    multiplier: 0,
-  },
-  '2x': {
-    label: '2x Risk',
-    name: '2x Multiplier',
-    multiplier: 2,
-  },
-  '3x': {
-    label: '3x Risk',
-    name: '3x Multiplier',
-    multiplier: 3,
-  },
-  '5x': {
-    label: '5x Risk',
-    name: '5x High Conviction',
-    multiplier: 5,
-  },
-};
-
 interface Props {
   callsign: string;
   onExit: () => void;
 }
+
+// Subcomponent: Player Status Bar
+const PlayerStatusBar = memo(function PlayerStatusBar({
+  callsign,
+  capital,
+  currentRound,
+  totalRounds,
+  onExit,
+}: {
+  callsign: string;
+  capital: number;
+  currentRound: number;
+  totalRounds: number;
+  onExit: () => void;
+}) {
+  return (
+    <div className="arena-status-bar">
+      <div className="arena-trader-info">
+        <span className="arena-label">TRADER</span>
+        <span className="arena-callsign">{callsign.toUpperCase()}</span>
+      </div>
+
+      <div className="arena-capital-box">
+        <span className="arena-label">PORTFOLIO CAPITAL</span>
+        <span className="arena-capital-value">
+          ₹{capital.toLocaleString()}
+        </span>
+      </div>
+
+      <div className="arena-actions-top">
+        <span className="arena-progress">
+          ROUND {currentRound} / {totalRounds}
+        </span>
+        <button
+          type="button"
+          className="arena-exit-btn"
+          onClick={onExit}
+          title="Leave simulation"
+        >
+          Leave ↗
+        </button>
+      </div>
+    </div>
+  );
+});
 
 export function GameArena({ callsign, onExit }: Props) {
   const [capital, setCapital] = useState(1000);
@@ -134,76 +149,57 @@ export function GameArena({ callsign, onExit }: Props) {
   const [isWin, setIsWin] = useState(false);
   const [isTimeout, setIsTimeout] = useState(false);
   const [confettiTrigger, setConfettiTrigger] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(15);
 
   const currentQuestion = QUESTIONS[currentIndex];
   const effectiveBid = Math.min(capital, Math.max(10, bidAmount));
 
-  const calculateWinBenefit = (risk: RiskLevel, bid: number) => {
-    if (risk === 'none') return 100;
-    if (risk === '2x') return bid * 2;
-    if (risk === '3x') return bid * 3;
-    if (risk === '5x') return bid * 5;
-    return 100;
-  };
+  const resolveRound = useCallback(
+    (chosen: number | null, timedOut = false) => {
+      const q = QUESTIONS[currentIndex];
+      const bid = Math.min(capital, Math.max(10, bidAmount));
 
-  const calculateDownside = (risk: RiskLevel, bid: number) => {
-    if (risk === 'none') return 0;
-    return bid;
-  };
+      const calculateWinBenefit = (risk: RiskLevel, b: number) => {
+        if (risk === 'none') return 100;
+        if (risk === '2x') return b * 2;
+        if (risk === '3x') return b * 3;
+        if (risk === '5x') return b * 5;
+        return 100;
+      };
 
-  // 15-second countdown timer per question
-  useEffect(() => {
-    if (gameState !== 'question') return;
+      const calculateDownside = (risk: RiskLevel, b: number) => {
+        if (risk === 'none') return 0;
+        return b;
+      };
 
-    setTimeLeft(15);
-    setIsTimeout(false);
+      if (chosen !== null && chosen === q.correctOption) {
+        const reward = calculateWinBenefit(selectedRisk, bid);
+        setCapital((prev) => prev + reward);
+        setLastDelta(reward);
+        setIsWin(true);
+        setIsTimeout(false);
+        setConfettiTrigger(true);
+      } else {
+        const loss = calculateDownside(selectedRisk, bid);
+        setCapital((prev) => Math.max(0, prev - loss));
+        setLastDelta(loss);
+        setIsWin(false);
+        setIsTimeout(timedOut);
+        setConfettiTrigger(false);
+      }
+      setGameState('result');
+    },
+    [currentIndex, capital, bidAmount, selectedRisk]
+  );
 
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+  const handleTimeout = useCallback(() => {
+    resolveRound(selectedOption, selectedOption === null);
+  }, [resolveRound, selectedOption]);
 
-    return () => clearInterval(timer);
-  }, [currentIndex, gameState]);
-
-  const resolveRound = (chosen: number | null, timedOut = false) => {
-    const currentBid = effectiveBid;
-    if (chosen !== null && chosen === currentQuestion.correctOption) {
-      const reward = calculateWinBenefit(selectedRisk, currentBid);
-      setCapital((prev) => prev + reward);
-      setLastDelta(reward);
-      setIsWin(true);
-      setIsTimeout(false);
-      setConfettiTrigger(true);
-    } else {
-      const loss = calculateDownside(selectedRisk, currentBid);
-      setCapital((prev) => Math.max(0, prev - loss));
-      setLastDelta(loss);
-      setIsWin(false);
-      setIsTimeout(timedOut);
-      setConfettiTrigger(false);
-    }
-    setGameState('result');
-  };
-
-  // Handle 15s deadline expiry
-  useEffect(() => {
-    if (gameState === 'question' && timeLeft === 0) {
-      resolveRound(selectedOption, selectedOption === null);
-    }
-  }, [timeLeft, gameState]);
-
-  const handleLockIn = () => {
+  const handleLockIn = useCallback(() => {
     if (selectedOption !== null) {
-      resolveRound(selectedOption);
+      resolveRound(selectedOption, false);
     }
-  };
+  }, [resolveRound, selectedOption]);
 
   const handleNext = () => {
     setConfettiTrigger(false);
@@ -211,12 +207,7 @@ export function GameArena({ callsign, onExit }: Props) {
     setSelectedRisk('none');
     setIsTimeout(false);
 
-    if (capital <= 0) {
-      setGameState('gameover');
-      return;
-    }
-
-    if (currentIndex + 1 >= QUESTIONS.length) {
+    if (capital <= 0 || currentIndex + 1 >= QUESTIONS.length) {
       setGameState('gameover');
     } else {
       setCurrentIndex((prev) => prev + 1);
@@ -234,64 +225,30 @@ export function GameArena({ callsign, onExit }: Props) {
     setConfettiTrigger(false);
     setIsWin(false);
     setIsTimeout(false);
-    setTimeLeft(15);
   };
-
-  const potentialWin = calculateWinBenefit(selectedRisk, effectiveBid);
-  const potentialLoss = calculateDownside(selectedRisk, effectiveBid);
 
   return (
     <div className="arena-container">
       <Confetti trigger={confettiTrigger} />
 
       {/* Top Status Bar */}
-      <div className="arena-status-bar">
-        <div className="arena-trader-info">
-          <span className="arena-label">TRADER</span>
-          <span className="arena-callsign">{callsign.toUpperCase()}</span>
-        </div>
-
-        <div className="arena-capital-box">
-          <span className="arena-label">CAPITAL BALANCE</span>
-          <span className="arena-capital-value">
-            ₹{capital.toLocaleString()}
-          </span>
-        </div>
-
-        <div className="arena-actions-top">
-          <span className="arena-progress">
-            ROUND {currentIndex + 1} / {QUESTIONS.length}
-          </span>
-          <button
-            type="button"
-            className="arena-exit-btn"
-            onClick={onExit}
-            title="Leave simulation"
-          >
-            Leave ↗
-          </button>
-        </div>
-      </div>
+      <PlayerStatusBar
+        callsign={callsign}
+        capital={capital}
+        currentRound={currentIndex + 1}
+        totalRounds={QUESTIONS.length}
+        onExit={onExit}
+      />
 
       {/* Question / Active View */}
       {gameState === 'question' && (
         <div className="arena-card">
-          {/* 15-Second Timer Bar */}
-          <div className="arena-timer-bar-wrap">
-            <div className="timer-info-row">
-              <span className={`timer-badge ${timeLeft <= 5 ? 'urgent' : ''}`}>
-                <span className="timer-icon">⏱</span>
-                <span>{timeLeft}s REMAINING</span>
-              </span>
-              <span className="timer-rule">15-SECOND DECISION DEADLINE</span>
-            </div>
-            <div className="timer-track">
-              <div
-                className={`timer-fill ${timeLeft <= 5 ? 'urgent' : ''}`}
-                style={{ width: `${(timeLeft / 15) * 100}%` }}
-              />
-            </div>
-          </div>
+          {/* Isolated 15-Second Timer Bar */}
+          <RoundTimer
+            roundKey={currentIndex}
+            duration={15}
+            onTimeout={handleTimeout}
+          />
 
           <div className="arena-card-header">
             <span className="arena-category">{currentQuestion.category}</span>
@@ -302,7 +259,7 @@ export function GameArena({ callsign, onExit }: Props) {
 
           <h2 className="arena-question-text">{currentQuestion.question}</h2>
 
-          {/* 4 Options Grid */}
+          {/* 4 Options Grid (Mobile-First 1 Column on small screens, 2 Columns on desktop) */}
           <div className="arena-options-grid">
             {currentQuestion.options.map((opt, idx) => {
               const letter = ['A', 'B', 'C', 'D'][idx];
@@ -313,6 +270,7 @@ export function GameArena({ callsign, onExit }: Props) {
                   type="button"
                   className={`arena-option-btn ${isSelected ? 'selected' : ''}`}
                   onClick={() => setSelectedOption(idx)}
+                  aria-pressed={isSelected}
                 >
                   <span className="option-letter">{letter}</span>
                   <span className="option-text">{opt}</span>
@@ -321,74 +279,23 @@ export function GameArena({ callsign, onExit }: Props) {
             })}
           </div>
 
-          {/* Bid Amount + Risk Selector */}
-          <div className="arena-risk-section">
-            {/* Bid Amount Input */}
-            <div className="bid-row">
-              <label htmlFor="bid-input" className="risk-title">
-                YOUR BID AMOUNT
-              </label>
-              <div className="bid-input-wrap">
-                <span className="bid-currency">₹</span>
-                <input
-                  id="bid-input"
-                  type="number"
-                  min={10}
-                  max={capital}
-                  step={10}
-                  value={bidAmount}
-                  onChange={(e) =>
-                    setBidAmount(
-                      Math.min(capital, Math.max(10, Number(e.target.value))),
-                    )
-                  }
-                  className="bid-amount-input"
-                />
-              </div>
-            </div>
+          {/* Dynamic Risk Controller with Steppers, Slider & Financial Breakdown */}
+          <RiskControls
+            capital={capital}
+            bidAmount={effectiveBid}
+            selectedRisk={selectedRisk}
+            onBidChange={setBidAmount}
+            onRiskChange={setSelectedRisk}
+          />
 
-            <div className="risk-header">
-              <span className="risk-title">SELECT RISK MULTIPLIER</span>
-              <span className="risk-payoff-preview">
-                {selectedRisk === 'none'
-                  ? 'Safe Gain: +₹100 | Bid at Risk: ₹0'
-                  : `Win: +₹${potentialWin.toLocaleString()} | Lose: -₹${potentialLoss.toLocaleString()}`}
-              </span>
-            </div>
-
-            <div className="risk-pills-row">
-              {(['none', '2x', '3x', '5x'] as RiskLevel[]).map((tier) => {
-                const config = RISK_TIERS[tier];
-                const active = selectedRisk === tier;
-                const disabled = tier !== 'none' && effectiveBid > capital;
-
-                return (
-                  <LiquidGlassButton
-                    key={tier}
-                    active={active}
-                    disabled={disabled}
-                    onClick={() => setSelectedRisk(tier)}
-                  >
-                    <span className="risk-pill-name">{config.label}</span>
-                    <span className="risk-pill-desc">
-                      {tier === 'none'
-                        ? 'Win: +₹100'
-                        : `Win: +₹${calculateWinBenefit(tier, effectiveBid).toLocaleString()}`}
-                    </span>
-                  </LiquidGlassButton>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Submit Action */}
+          {/* Primary Action Button */}
           <div className="arena-submit-wrap">
             <LiquidMetalButton
               type="button"
               label={
                 selectedOption === null
-                  ? `Choose an option (${timeLeft}s remaining)`
-                  : `Confirm — Bid ₹${effectiveBid} · ${RISK_TIERS[selectedRisk].label}`
+                  ? 'Select an Option to Lock In'
+                  : `Lock In — Bid ₹${effectiveBid} · ${RISK_TIERS[selectedRisk].label}`
               }
               onClick={handleLockIn}
             />
@@ -402,7 +309,7 @@ export function GameArena({ callsign, onExit }: Props) {
           {isWin ? (
             <div className="celebration-hero">
               <div className="celebration-badge">
-                <span className="congrats-emoji">🎉</span>
+                <span className="congrats-emoji" aria-hidden="true">🎉</span>
                 <span className="congrats-tag">OUTSTANDING POSITION</span>
               </div>
               <h2 className="congrats-heading">Congratulations, {callsign}!</h2>
@@ -432,7 +339,7 @@ export function GameArena({ callsign, onExit }: Props) {
               </h2>
               <p className="loss-sub">
                 {isTimeout
-                  ? 'No option was selected within the 15-second deadline. Position forfeited.'
+                  ? 'No option was locked in within the 15-second deadline. Position forfeited.'
                   : 'The market moved against your position.'}
               </p>
               <div className="payout-stat-card loss">
@@ -514,3 +421,4 @@ export function GameArena({ callsign, onExit }: Props) {
     </div>
   );
 }
+

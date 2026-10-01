@@ -1,43 +1,59 @@
 @import 'tailwindcss';
 
 :root {
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+  --font-apple: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
     'Helvetica Neue', Arial, sans-serif;
-  color: #000000;
-  background-color: #ffffff;
-  font-synthesis: none;
-  --font-apple:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
-    'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SF Mono', 'Space Mono', 'Courier New', monospace;
+
+  /* Color Palette */
+  --bg-primary: #ffffff;
+  --bg-subtle: #f7f7f8;
+  --bg-card: rgba(255, 255, 255, 0.92);
+  --bg-dark: #000000;
+  --text-primary: #000000;
+  --text-secondary: #555555;
+  --text-muted: #888888;
+  --border-color: #000000;
+  --border-subtle: rgba(0, 0, 0, 0.12);
+  
+  /* Status Colors */
+  --status-profit: #10b981;
+  --status-loss: #e11d48;
+  --status-gold: #d4af37;
+
+  /* Safe Area Tokens */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-/* Enforce Apple bold typography universally */
-body,
-button,
-input,
-label,
-p,
-span,
-h1,
-h2,
-h3,
-a,
-div {
+html {
   font-family: var(--font-apple);
-  font-weight: 700;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
-  background-color: #ffffff;
-  color: #000000;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
   overflow-x: hidden;
+  min-height: 100svh;
+  font-weight: 700;
 }
 
 a {
@@ -48,33 +64,39 @@ a {
 button,
 input {
   font: inherit;
-  font-weight: 700;
-}
-
-button,
-a,
-input {
+  color: inherit;
   -webkit-tap-highlight-color: transparent;
 }
 
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
 :focus-visible {
-  outline: 2px solid #000000;
-  outline-offset: 3px;
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
 }
 
 ::selection {
-  background: #000000;
+  background: var(--bg-dark);
   color: #ffffff;
 }
 
+/* =========================================
+   APP CONTAINER & LAYOUT
+   ========================================= */
 .paper {
   position: relative;
   z-index: 1;
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1120px;
   min-height: 100svh;
   margin: 0 auto;
-  padding: 0 28px;
-  background-color: transparent;
+  padding-top: max(12px, var(--sat));
+  padding-bottom: max(24px, var(--sab));
+  padding-left: max(16px, var(--sal));
+  padding-right: max(16px, var(--sar));
   display: flex;
   flex-direction: column;
 }
@@ -83,60 +105,59 @@ main {
   flex: 1;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  min-width: 0;
 }
 
 /* =========================================
-   HEADER & WIDE CENTERED DYNAMIC ISLAND
+   HEADER & WIDE DYNAMIC ISLAND
    ========================================= */
 .header-wrapper {
   position: sticky;
   top: 0;
   z-index: 50;
-  background: transparent;
-  padding: 20px 0 10px;
+  padding: 8px 0 16px;
   display: flex;
   justify-content: center;
   pointer-events: none;
+  width: 100%;
 }
 
 .header-centered-island-wrap {
   width: 100%;
-  max-width: 860px;
+  max-width: 820px;
   display: flex;
   justify-content: center;
   pointer-events: auto;
 }
 
-/* Dynamic Island Display - Increased Height, Wider, & Lag-free GPU Acceleration */
 .dynamic-island {
-  background: #000000;
+  background: var(--bg-dark);
   color: #ffffff;
   border-radius: 9999px;
   width: 100%;
   max-width: 800px;
-  min-height: 64px;
+  min-height: 58px;
   box-shadow:
-    0 18px 48px rgba(0, 0, 0, 0.3),
-    0 4px 14px rgba(0, 0, 0, 0.16);
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  perspective: 1000px;
-  will-change: max-width, min-height, border-radius;
+    0 12px 36px rgba(0, 0, 0, 0.25),
+    0 4px 12px rgba(0, 0, 0, 0.12);
+  transform: translate3d(0, 0, 0);
   transition:
-    max-width 420ms cubic-bezier(0.16, 1, 0.3, 1),
-    min-height 420ms cubic-bezier(0.16, 1, 0.3, 1),
-    border-radius 360ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 360ms ease;
+    max-width 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    min-height 360ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 300ms ease;
   position: relative;
   z-index: 100;
   display: flex;
   align-items: center;
+  contain: layout style;
 }
 
 .dynamic-island.expanded {
-  border-radius: 32px;
-  max-width: 840px;
-  min-height: 250px;
+  border-radius: 24px;
+  max-width: 820px;
+  min-height: 220px;
   align-items: stretch;
 }
 
@@ -145,32 +166,34 @@ main {
   align-items: center;
   justify-content: center;
   width: 100%;
+  min-width: 0;
 }
 
-/* Collapsed Wide Dynamic Island Pill */
+/* Collapsed Dynamic Island */
 .island-collapsed-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 64px;
-  padding: 14px 28px;
+  min-height: 58px;
+  padding: 10px 18px;
   cursor: pointer;
   user-select: none;
-  gap: 18px;
-  transition: background-color 200ms ease;
+  gap: 10px;
+  min-width: 0;
 }
 
 .island-left-group {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
+  gap: 8px;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .island-sensor-dot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: #ff5722;
   flex-shrink: 0;
@@ -182,56 +205,62 @@ main {
 
 .island-sensor-dot.verified,
 .island-sensor-dot.active {
-  background: #10b981;
-  box-shadow: 0 0 12px #10b981;
+  background: var(--status-profit);
+  box-shadow: 0 0 10px var(--status-profit);
 }
 
 @keyframes sensor-glow {
-  0%,
-  100% {
+  0%, 100% {
     transform: scale(1);
     opacity: 0.95;
   }
   50% {
-    transform: scale(1.35);
-    opacity: 0.55;
+    transform: scale(1.3);
+    opacity: 0.5;
   }
 }
 
 .island-label-group {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
 }
 
 .island-badge {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   color: #ffffff;
+  white-space: nowrap;
 }
 
 .island-subtext {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   color: #a1a1aa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Middle Group in Dynamic Island */
 .island-middle-group {
   display: flex;
   align-items: center;
   justify-content: center;
   flex: 1;
+  min-width: 0;
 }
 
 .island-capital-risk-text {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: #e4e4e7;
   letter-spacing: 0.01em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .island-capital-risk-text strong {
@@ -239,7 +268,6 @@ main {
   font-weight: 800;
 }
 
-/* Right Group */
 .island-right-group {
   display: flex;
   align-items: center;
@@ -249,30 +277,28 @@ main {
 .island-action-tag {
   background: rgba(255, 255, 255, 0.12);
   color: #ffffff;
-  padding: 6px 14px;
+  padding: 6px 12px;
   border-radius: 9999px;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  transition:
-    background-color 200ms ease,
-    transform 200ms ease;
+  white-space: nowrap;
+  transition: background-color 150ms ease;
 }
 
 .island-collapsed-content:hover .island-action-tag {
   background: rgba(255, 255, 255, 0.22);
-  transform: translateY(-1px);
 }
 
 /* Expanded Dynamic Island Login Form */
 .island-expanded-form {
-  padding: 22px 28px 24px;
+  padding: 18px 20px 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   width: 100%;
-  animation: island-form-fade 250ms ease-out;
+  animation: island-form-fade 200ms ease-out;
 }
 
 @keyframes island-form-fade {
@@ -291,19 +317,19 @@ main {
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid #222222;
-  padding-bottom: 12px;
+  padding-bottom: 10px;
 }
 
 .island-title-wrap {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .island-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: #ffffff;
 }
 
@@ -311,12 +337,12 @@ main {
   background: #1c1c1e;
   border: 0;
   color: #888888;
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   transition: background-color 150ms ease;
 }
@@ -329,20 +355,20 @@ main {
 .island-inputs-row {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
-  gap: 14px;
+  gap: 12px;
   align-items: flex-end;
 }
 
 .island-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .island-field label {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   color: #aaaaaa;
 }
 
@@ -351,9 +377,10 @@ main {
   border: 1px solid #333333;
   border-radius: 10px;
   color: #ffffff;
-  padding: 12px 14px;
+  padding: 10px 12px;
   font-size: 13px;
   font-weight: 700;
+  min-height: 44px;
   outline: none;
   transition: border-color 150ms ease;
 }
@@ -371,27 +398,24 @@ main {
   color: #000000;
   border: 0;
   border-radius: 10px;
-  padding: 12px 20px;
+  padding: 10px 16px;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.04em;
   cursor: pointer;
-  height: 44px;
+  min-height: 44px;
   white-space: nowrap;
-  transition:
-    transform 150ms ease,
-    opacity 150ms ease;
+  transition: opacity 150ms ease;
 }
 
 .island-auth-btn:hover {
   opacity: 0.9;
-  transform: translateY(-1px);
 }
 
 .island-feedback {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 800;
-  color: #10b981;
+  color: var(--status-profit);
   text-align: center;
 }
 
@@ -399,42 +423,49 @@ main {
 .island-ingame-content {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 14px 28px;
-  min-height: 64px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 18px;
+  min-height: 58px;
   width: 100%;
+  min-width: 0;
 }
 
 .island-trader-tag {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .island-separator {
   color: #555555;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .island-status-pill {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
-  color: #10b981;
-  letter-spacing: 0.05em;
+  color: var(--status-profit);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .island-leave-action {
   background: #222222;
   border: 0;
   color: #ffffff;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.05em;
-  padding: 6px 16px;
+  letter-spacing: 0.04em;
+  padding: 6px 14px;
   border-radius: 100px;
   cursor: pointer;
+  white-space: nowrap;
+  min-height: 36px;
   transition: background-color 150ms ease;
 }
 
@@ -443,302 +474,263 @@ main {
 }
 
 /* =========================================
-   JOIN SECTION & AUTHENTICATION GATING
+   JOIN SCREEN
    ========================================= */
 .join-section {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 70px 0 90px;
+  padding: clamp(24px, 6vw, 60px) 0;
+  width: 100%;
 }
 
 .join-wrapper {
   width: 100%;
-  max-width: 500px;
+  max-width: 480px;
 }
 
-/* Locked Card: When not logged in */
-.join-locked-card {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid #000000;
-  border-radius: 24px;
-  padding: 44px 36px;
-  text-align: center;
+.join-locked-card,
+.join {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1.5px solid var(--border-color);
+  border-radius: 20px;
+  padding: clamp(20px, 5vw, 36px);
   display: flex;
   flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  width: 100%;
+}
+
+.join-locked-card {
+  text-align: center;
   align-items: center;
-  gap: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
 }
 
 .locked-badge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
-  border: 1px solid #000000;
+  gap: 6px;
+  padding: 5px 14px;
+  border: 1px solid var(--border-color);
   border-radius: 100px;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
-  letter-spacing: 0.05em;
-  background: #fafafa;
+  letter-spacing: 0.04em;
+  background: var(--bg-subtle);
 }
 
-.join-locked-card h2 {
-  font-size: clamp(28px, 3.4vw, 36px);
+.join-locked-card h2,
+.join-title-row h2 {
+  font-size: clamp(24px, 5vw, 34px);
   font-weight: 800;
   letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--text-primary);
   margin: 0;
-  color: #000000;
 }
 
 .locked-description {
-  font-size: 14.5px;
+  font-size: 13.5px;
   font-weight: 700;
   line-height: 1.45;
-  color: #444444;
+  color: var(--text-secondary);
   margin: 0;
-  max-width: 400px;
+  max-width: 380px;
 }
 
 .locked-action-wrap {
   width: 100%;
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 .open-island-login-btn {
   width: 100%;
-  padding: 16px 20px;
-  background: #000000;
+  padding: 14px 18px;
+  min-height: 48px;
+  background: var(--bg-dark);
   color: #ffffff;
   border: 0;
-  border-radius: 14px;
-  font-size: 13.5px;
+  border-radius: 12px;
+  font-size: 13px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  transition:
-    transform 150ms ease,
-    background-color 150ms ease;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: opacity 150ms ease;
 }
 
 .open-island-login-btn:hover {
-  transform: translateY(-2px);
-  background: #222222;
-}
-
-.open-island-login-btn .arrow {
-  font-size: 15px;
-}
-
-/* Unlocked Join Form */
-.join {
-  width: 100%;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid #000000;
-  border-radius: 24px;
-  padding: 40px 36px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
-}
-
-.join-title-row {
-  margin-bottom: 4px;
+  opacity: 0.9;
 }
 
 .join-illuminate-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border: 1px solid #000000;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--border-color);
   border-radius: 100px;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
-  letter-spacing: 0.04em;
-  margin-bottom: 14px;
-  background: #fafafa;
+  letter-spacing: 0.03em;
+  margin-bottom: 10px;
+  background: var(--bg-subtle);
 }
 
 .join-illuminate-pill .pill-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #10b981;
-}
-
-.join-title-row h2 {
-  font-size: clamp(30px, 3.6vw, 40px);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  margin: 0 0 8px;
-  line-height: 1.05;
-  color: #000000;
+  background: var(--status-profit);
 }
 
 .join-sub {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
-  color: #000000;
-  margin: 0;
-  letter-spacing: -0.01em;
-}
-
-.join-sub strong {
-  font-weight: 800;
-  color: #000000;
+  color: var(--text-secondary);
+  margin-top: 6px;
 }
 
 .input-fields {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
 }
 
 .input-field-wrap {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
-.join label {
-  display: block;
-  font-size: 12px;
+.input-field-wrap label {
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #000000;
+  color: var(--text-primary);
 }
 
-.join input {
+.input-field-wrap input {
   width: 100%;
-  border: 1px solid #000000;
-  border-radius: 12px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 10px;
   background: #ffffff;
-  padding: 14px 16px;
+  padding: 12px 14px;
+  min-height: 48px;
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: #000000;
-  transition: outline 100ms ease;
+  color: var(--text-primary);
 }
 
-.join input:focus {
-  outline: 2px solid #000000;
-  outline-offset: 2px;
+.input-field-wrap input:focus {
+  outline: 2px solid var(--border-color);
+  outline-offset: 1px;
 }
 
-.join input::placeholder {
-  color: #888888;
-  font-weight: 700;
-}
-
-.join .liquid-metal-button {
-  width: 100%;
-  margin-top: 8px;
-  height: 52px;
+.input-field-wrap input::placeholder {
+  color: var(--text-muted);
 }
 
 /* =========================================
-   GAME ARENA & 15-SECOND COUNTDOWN TIMER
+   GAME ARENA
    ========================================= */
 .arena-container {
   width: 100%;
-  max-width: 820px;
+  max-width: 780px;
   margin: 0 auto;
-  padding: 36px 0 80px;
+  padding: 12px 0 36px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 16px;
 }
 
+/* Player Status Bar */
 .arena-status-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 18px 24px;
-  border: 1px solid #000000;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-radius: 16px;
+  padding: 12px 18px;
+  border: 1.5px solid var(--border-color);
+  background: var(--bg-card);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-radius: 14px;
+  gap: 12px;
+  width: 100%;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
 }
 
 .arena-trader-info,
 .arena-capital-box {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .arena-label {
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #555555;
+  color: var(--text-secondary);
   font-weight: 800;
 }
 
 .arena-callsign {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.02em;
 }
 
 .arena-capital-value {
-  font-size: 26px;
+  font-size: clamp(20px, 4vw, 24px);
   font-weight: 800;
-  color: #000000;
+  color: var(--text-primary);
   letter-spacing: -0.02em;
 }
 
 .arena-actions-top {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .arena-progress {
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0.04em;
   font-weight: 800;
-  color: #000000;
+  color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .arena-exit-btn {
   background: transparent;
   border: 0;
-  border-bottom: 1.5px solid #000000;
-  font-size: 11.5px;
-  letter-spacing: 0.04em;
+  border-bottom: 1.5px solid var(--border-color);
+  font-size: 11px;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   cursor: pointer;
   padding: 2px 0;
   font-weight: 800;
-}
-
-.arena-exit-btn:hover {
-  opacity: 0.6;
+  min-height: 28px;
 }
 
 /* 15-Second Timer Bar */
 .arena-timer-bar-wrap {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 6px;
+  width: 100%;
 }
 
 .timer-info-row {
@@ -750,19 +742,19 @@ main {
 .timer-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  background: #000000;
+  gap: 5px;
+  padding: 4px 10px;
+  background: var(--bg-dark);
   color: #ffffff;
   border-radius: 100px;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   transition: background-color 200ms ease;
 }
 
 .timer-badge.urgent {
-  background: #e11d48;
+  background: var(--status-loss);
   animation: timer-pulse 1s infinite alternate;
 }
 
@@ -771,25 +763,25 @@ main {
     transform: scale(1);
   }
   to {
-    transform: scale(1.05);
+    transform: scale(1.04);
   }
 }
 
 .timer-icon {
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .timer-rule {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.05em;
-  color: #666666;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
   text-transform: uppercase;
 }
 
 .timer-track {
   width: 100%;
-  height: 6px;
+  height: 5px;
   background: #e5e5e5;
   border-radius: 100px;
   overflow: hidden;
@@ -797,168 +789,134 @@ main {
 
 .timer-fill {
   height: 100%;
-  background: #000000;
+  background: var(--bg-dark);
   border-radius: 100px;
   transition: width 1s linear;
 }
 
 .timer-fill.urgent {
-  background: #e11d48;
+  background: var(--status-loss);
 }
 
 /* Question Card */
 .arena-card {
-  border: 1px solid #000000;
-  padding: 38px 36px 42px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 20px;
+  border: 1.5px solid var(--border-color);
+  padding: clamp(18px, 4vw, 32px);
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 18px;
   display: flex;
   flex-direction: column;
-  gap: 26px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  gap: 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+  width: 100%;
 }
 
 .arena-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #eaeaea;
-  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 10px;
 }
 
 .arena-category {
-  font-size: 12px;
-  letter-spacing: 0.06em;
+  font-size: 11px;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   font-weight: 800;
-  color: #000000;
+  color: var(--text-primary);
 }
 
 .arena-multiplier-badge {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  padding: 5px 12px;
-  background: #000000;
+  padding: 4px 10px;
+  background: var(--bg-dark);
   color: #ffffff;
   border-radius: 100px;
 }
 
 .arena-question-text {
-  font-size: clamp(22px, 2.5vw, 30px);
+  font-size: clamp(19px, 3.5vw, 26px);
   font-weight: 800;
   line-height: 1.25;
   letter-spacing: -0.02em;
+  color: var(--text-primary);
   margin: 0;
-  color: #000000;
 }
 
-/* Options Grid */
+/* Options Grid: Responsive 1-col on Mobile, 2-col on Desktop */
 .arena-options-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  gap: 10px;
+  width: 100%;
 }
 
 .arena-option-btn {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 16px 18px;
-  border: 1px solid #000000;
+  gap: 10px;
+  padding: 12px 14px;
+  min-height: 52px;
+  border: 1.5px solid var(--border-color);
   background: #ffffff;
-  color: #000000;
+  color: var(--text-primary);
   text-align: left;
   cursor: pointer;
-  border-radius: 14px;
+  border-radius: 12px;
+  touch-action: manipulation;
   transition:
-    background-color 150ms ease,
-    color 150ms ease,
+    background-color 140ms ease,
+    color 140ms ease,
     transform 120ms ease;
 }
 
 .arena-option-btn:hover {
-  background: #f7f7f7;
+  background: var(--bg-subtle);
   transform: translateY(-1px);
 }
 
 .arena-option-btn.selected {
-  background: #000000;
+  background: var(--bg-dark);
   color: #ffffff;
-  border-color: #000000;
+  border-color: var(--bg-dark);
 }
 
 .option-letter {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
-  padding: 2px 7px;
+  padding: 2px 6px;
   border: 1.5px solid currentColor;
   border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .option-text {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
   line-height: 1.35;
   letter-spacing: -0.01em;
+  overflow-wrap: break-word;
 }
 
-/* Risk Section with Liquid Glass Buttons */
+/* =========================================
+   DYNAMIC RISK CONTROLS
+   ========================================= */
 .arena-risk-section {
-  border-top: 1px solid #eaeaea;
-  padding-top: 22px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 18px;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  width: 100%;
 }
 
-/* Bid Amount Row */
-.bid-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.bid-input-wrap {
-  display: flex;
-  align-items: center;
-  border: 1.5px solid #000000;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #ffffff;
-}
-
-.bid-currency {
-  padding: 8px 10px;
-  font-size: 14px;
-  font-weight: 800;
-  color: #000000;
-  border-right: 1.5px solid #000000;
-  background: #f7f7f7;
-}
-
-.bid-amount-input {
-  border: 0;
-  outline: none;
-  padding: 8px 12px;
-  font-size: 15px;
-  font-weight: 800;
-  color: #000000;
-  width: 110px;
-  background: #ffffff;
-  -moz-appearance: textfield;
-}
-
-.bid-amount-input::-webkit-inner-spin-button,
-.bid-amount-input::-webkit-outer-spin-button {
-  opacity: 1;
-}
-
-.risk-header {
+.risk-dynamic-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -966,70 +924,253 @@ main {
   gap: 8px;
 }
 
-.risk-title {
-  font-size: 12px;
+.risk-title-badge {
+  font-size: 11.5px;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
-.risk-payoff-preview {
-  font-size: 12px;
+.risk-percentage-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-subtle);
+  padding: 4px 6px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 100px;
+}
+
+.risk-step-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-dark);
+  color: #ffffff;
+  border: 0;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: opacity 120ms ease;
+}
+
+.risk-step-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.risk-step-btn:not(:disabled):hover {
+  opacity: 0.85;
+}
+
+.risk-percent-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 6px;
+  min-width: 60px;
+}
+
+.percent-val {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.percent-sub {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+/* Range Slider */
+.risk-slider-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.slider-labels-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text-secondary);
+  letter-spacing: 0.03em;
+}
+
+.slider-track-wrap {
+  width: 100%;
+  padding: 4px 0;
+}
+
+.risk-range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 100px;
+  background: #e5e5e5;
+  outline: none;
+  cursor: pointer;
+}
+
+.risk-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bg-dark);
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+
+.risk-range-slider::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bg-dark);
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+.risk-range-slider:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+/* Financial Exposure 4-Metric Grid */
+.risk-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.risk-metric-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.risk-metric-card.highlight {
+  border-color: var(--border-color);
+  background: var(--bg-subtle);
+}
+
+.metric-tag {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metric-num {
+  font-size: 13.5px;
   font-weight: 800;
   letter-spacing: -0.01em;
-  color: #000000;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metric-num.win {
+  color: var(--status-profit);
+}
+
+.metric-num.loss {
+  color: var(--status-loss);
+}
+
+/* Risk Multiplier Presets */
+.risk-multiplier-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.risk-sub-heading {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.risk-current-badge {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--text-secondary);
 }
 
 .risk-pills-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  gap: 8px;
+  width: 100%;
 }
 
 .risk-pill-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .risk-pill-desc {
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
   opacity: 0.85;
   white-space: nowrap;
 }
 
 .arena-submit-wrap {
-  margin-top: 6px;
-}
-
-.arena-submit-wrap .liquid-metal-button {
+  margin-top: 4px;
   width: 100%;
-  height: 52px;
 }
 
 /* =========================================
-   RESULT CARD & CONGRATULATION CELEBRATION
+   RESULT CARD
    ========================================= */
 .arena-result-card {
-  border: 1px solid #000000;
-  padding: 44px 40px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 20px;
+  border: 1.5px solid var(--border-color);
+  padding: clamp(24px, 5vw, 40px);
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 18px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
-  animation: result-fade-in 300ms ease-out;
+  gap: 22px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  animation: result-fade-in 250ms ease-out;
+  width: 100%;
 }
 
 @keyframes result-fade-in {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -1037,241 +1178,205 @@ main {
   }
 }
 
-.celebration-hero {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
-}
-
-.celebration-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
-  background: #000000;
-  color: #ffffff;
-  border-radius: 100px;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  animation: badge-pop 400ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-@keyframes badge-pop {
-  0% {
-    transform: scale(0.6);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.congrats-emoji {
-  font-size: 16px;
-}
-
-.congrats-heading {
-  font-size: clamp(30px, 3.8vw, 44px);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  margin: 8px 0 0;
-  color: #000000;
-}
-
-.congrats-sub {
-  font-size: 14px;
-  font-weight: 700;
-  color: #333333;
-  margin: 0;
-}
-
-.payout-stat-card {
-  width: 100%;
-  max-width: 480px;
-  padding: 22px;
-  margin: 16px auto 0;
-  border: 1px solid #000000;
-  border-radius: 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.payout-stat-card.win {
-  background: #fbfbfb;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
-}
-
-.payout-stat-card.loss {
-  background: #fafafa;
-}
-
-.stat-label {
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #666666;
-  font-weight: 800;
-}
-
-.stat-amount {
-  font-size: 40px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-}
-
-.stat-amount.win {
-  color: #000000;
-}
-
-.stat-amount.loss {
-  color: #990000;
-}
-
-.stat-balance {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #222222;
-}
-
-/* Loss Hero */
+.celebration-hero,
 .loss-hero {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 8px;
+  gap: 6px;
+  width: 100%;
+}
+
+.celebration-badge,
+.loss-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  background: var(--bg-dark);
+  color: #ffffff;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
 .loss-badge {
-  display: inline-flex;
-  padding: 6px 14px;
-  border: 1.5px solid #000000;
-  border-radius: 100px;
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  background: transparent;
+  border: 1.5px solid var(--border-color);
+  color: var(--text-primary);
 }
 
+.congrats-heading,
 .loss-heading {
-  font-size: 38px;
-  margin: 6px 0 0;
+  font-size: clamp(24px, 5vw, 36px);
   font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 4px 0 0;
+  color: var(--text-primary);
+  line-height: 1.15;
 }
 
+.congrats-sub,
 .loss-sub {
   font-size: 13.5px;
   font-weight: 700;
-  color: #555555;
+  color: var(--text-secondary);
   margin: 0;
+  max-width: 440px;
+}
+
+.payout-stat-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 16px 20px;
+  margin: 10px auto 0;
+  border: 1.5px solid var(--border-color);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+}
+
+.stat-label {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  font-weight: 800;
+}
+
+.stat-amount {
+  font-size: clamp(28px, 6vw, 38px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.stat-amount.win {
+  color: var(--status-profit);
+}
+
+.stat-amount.loss {
+  color: var(--status-loss);
+}
+
+.stat-balance {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
 }
 
 .result-explanation {
-  border-left: 2px solid #000000;
-  padding: 4px 0 4px 16px;
+  border-left: 2.5px solid var(--border-color);
+  padding: 4px 0 4px 14px;
   margin: 0 auto;
-  max-width: 600px;
+  max-width: 560px;
+  width: 100%;
 }
 
 .exp-label {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
-  letter-spacing: 0.06em;
-  color: #000000;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
 }
 
 .exp-text {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 700;
-  line-height: 1.5;
-  color: #333333;
-  margin: 4px 0 0;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  margin-top: 3px;
 }
 
 .arena-next-wrap {
-  max-width: 480px;
+  max-width: 440px;
   width: 100%;
   margin: 0 auto;
 }
 
-.arena-next-wrap .liquid-metal-button {
-  width: 100%;
-  height: 52px;
-}
-
-/* Gameover Card */
+/* =========================================
+   GAME OVER CARD
+   ========================================= */
 .arena-gameover-card {
-  border: 1px solid #000000;
-  padding: 48px 36px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 20px;
+  border: 1.5px solid var(--border-color);
+  padding: clamp(24px, 5vw, 42px);
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 18px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 28px;
+  gap: 22px;
+  width: 100%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.gameover-header .eyebrow {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: var(--text-secondary);
 }
 
 .gameover-header h2 {
-  font-size: 40px;
+  font-size: clamp(26px, 5vw, 36px);
   font-weight: 800;
-  margin: 4px 0 6px;
+  margin: 4px 0;
+  line-height: 1.1;
 }
 
 .gameover-trader {
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 800;
-  letter-spacing: 0.04em;
-  color: #555555;
-  margin: 0;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
 }
 
 .summary-metrics {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  gap: 12px;
   width: 100%;
-  max-width: 580px;
+  max-width: 520px;
 }
 
 .summary-metric-box {
-  border: 1px solid #000000;
-  border-radius: 14px;
-  padding: 16px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 12px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   background: #ffffff;
 }
 
 .summary-metric-box.highlight {
-  background: #000000;
+  background: var(--bg-dark);
   color: #ffffff;
 }
 
 .metric-label {
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   font-weight: 800;
   opacity: 0.85;
 }
 
 .metric-val {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 800;
 }
 
 .metric-val.profit {
-  color: #008800;
+  color: var(--status-profit);
 }
 
 .summary-metric-box.highlight .metric-val {
@@ -1279,24 +1384,22 @@ main {
 }
 
 .gameover-message {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
-  line-height: 1.5;
-  max-width: 480px;
+  line-height: 1.45;
+  max-width: 440px;
   margin: 0;
-  color: #000000;
+  color: var(--text-primary);
 }
 
 .gameover-actions {
   width: 100%;
-  max-width: 400px;
+  max-width: 360px;
 }
 
-.gameover-actions .liquid-metal-button {
-  width: 100%;
-  height: 52px;
-}
-
+/* =========================================
+   RESPONSIVE BREAKPOINTS
+   ========================================= */
 @media (max-width: 800px) {
   .dynamic-island {
     max-width: 100%;
@@ -1304,25 +1407,79 @@ main {
   .island-inputs-row {
     grid-template-columns: 1fr;
   }
+  .island-middle-group {
+    display: none; /* Hide wide subtext on mobile to prevent overflow */
+  }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 640px) {
   .paper {
-    padding: 0 16px;
+    padding-left: max(12px, var(--sal));
+    padding-right: max(12px, var(--sar));
   }
-  .join-section {
-    padding: 40px 0 60px;
-  }
-  .arena-card {
-    padding: 24px 20px;
-  }
+  
   .arena-options-grid {
     grid-template-columns: 1fr;
   }
+
+  .risk-metrics-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .risk-pills-row {
     grid-template-columns: 1fr 1fr;
   }
+
   .summary-metrics {
     grid-template-columns: 1fr;
   }
+
+  .arena-status-bar {
+    padding: 10px 14px;
+  }
 }
+
+/* Small Mobile: 320px - 375px */
+@media (max-width: 375px) {
+  .dynamic-island {
+    min-height: 52px;
+  }
+
+  .island-collapsed-content {
+    padding: 8px 12px;
+    gap: 6px;
+  }
+
+  .island-badge {
+    font-size: 11px;
+  }
+
+  .island-action-tag {
+    padding: 4px 10px;
+    font-size: 10px;
+  }
+
+  .island-ingame-content {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .island-separator {
+    display: none;
+  }
+
+  .arena-card {
+    padding: 16px 14px;
+  }
+
+  .risk-dynamic-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .risk-percentage-stepper {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+

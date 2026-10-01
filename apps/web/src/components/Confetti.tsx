@@ -36,37 +36,46 @@ export function Confetti({ trigger }: Props) {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
+    const isMobile = window.innerWidth < 768;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2); // Cap at 2 to avoid memory strain on high-DPI mobile screens
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    ctx.scale(dpr, dpr);
 
     const handleResize = () => {
-      if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
+      if (!canvas || !ctx) return;
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.scale(dpr, dpr);
     };
 
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', handleResize, { passive: true });
 
     const particles: Particle[] = [];
-    const count = 100;
+    const count = isMobile ? 45 : 85; // Optimized particle count for smooth 60fps on mobile
 
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.5;
-      const speed = Math.random() * 12 + 6;
+      const speed = Math.random() * (isMobile ? 9 : 12) + 5;
       particles.push({
         x: width / 2,
-        y: height * 0.45,
+        y: height * 0.42,
         vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 5,
-        size: Math.random() * 8 + 4,
+        vy: Math.sin(angle) * speed - 4,
+        size: Math.random() * 6 + 4,
         color: COLORS[Math.floor(Math.random() * COLORS.length)],
         rotation: Math.random() * 360,
-        rotationSpeed: (Math.random() - 0.5) * 12,
+        rotationSpeed: (Math.random() - 0.5) * 10,
         alpha: 1,
-        decay: Math.random() * 0.012 + 0.008,
+        decay: Math.random() * 0.014 + 0.009,
       });
     }
 
@@ -84,7 +93,7 @@ export function Confetti({ trigger }: Props) {
         activeCount++;
         p.x += p.vx;
         p.y += p.vy;
-        p.vy += 0.25; // gravity
+        p.vy += 0.22; // gravity
         p.vx *= 0.98; // air drag
         p.rotation += p.rotationSpeed;
         p.alpha -= p.decay;
@@ -116,6 +125,7 @@ export function Confetti({ trigger }: Props) {
   return (
     <canvas
       ref={canvasRef}
+      aria-hidden="true"
       style={{
         position: 'fixed',
         inset: 0,
@@ -123,7 +133,9 @@ export function Confetti({ trigger }: Props) {
         height: '100vh',
         pointerEvents: 'none',
         zIndex: 9999,
+        contain: 'strict',
       }}
     />
   );
 }
+
