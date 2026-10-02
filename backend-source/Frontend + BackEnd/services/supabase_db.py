@@ -60,38 +60,39 @@ def get_safe_config_status():
     }
 
 
+import threading
+
+_local = threading.local()
+
+
 def get_supabase_client():
-    """Return a lazily-created Supabase client, or None if not configured.
+    """Return a thread-local Supabase client, or None if not configured.
 
-    The client uses the SERVICE_ROLE key server-side only. Returns None
-    when env vars are missing or the `supabase` package is unavailable,
-    so local development keeps working without credentials.
+    Uses thread-local storage so concurrent requests / threads each get
+    an isolated connection pool without HTTP/2 stream multiplexing collisions.
     """
-    global _supabase_client
-    if _supabase_client is not None:
-        return _supabase_client
-
     url = get_supabase_url()
     key = _get_env("SUPABASE_SERVICE_ROLE_KEY")
     if not url or not key:
         return None
 
-    try:
-        from supabase import create_client  # type: ignore
-    except Exception:
-        return None
+    client = getattr(_local, "client", None)
+    if client is not None:
+        return client
 
     try:
-        _supabase_client = create_client(url, key)
-        return _supabase_client
+        from supabase import create_client  # type: ignore
+        client = create_client(url, key)
+        _local.client = client
+        return client
     except Exception:
         return None
 
 
 def reset_supabase_client():
     """Reset the cached client (useful for tests)."""
-    global _supabase_client
-    _supabase_client = None
+    if hasattr(_local, "client"):
+        delattr(_local, "client")
 
 
 def check_supabase_connection(timeout_seconds=10):

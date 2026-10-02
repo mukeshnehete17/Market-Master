@@ -1361,6 +1361,7 @@ function Questions() {
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
   const [mutatingId, setMutatingId] = useState<string | null>(null);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({ ...EMPTY_Q });
@@ -1423,6 +1424,7 @@ function Questions() {
         setList((prev) => [created, ...prev]);
         setSuccessMsg('Question created successfully.');
       }
+      setShowAdd(false);
       setEditing(null);
       setForm({ ...EMPTY_Q });
     } catch (err: any) {
@@ -1471,6 +1473,7 @@ function Questions() {
           type="button"
           style={btnPrimary}
           onClick={() => {
+            setShowAdd(true);
             setEditing(null);
             setForm({ ...EMPTY_Q });
             setError('');
@@ -1486,7 +1489,7 @@ function Questions() {
       <Err msg={error} />
       {successMsg && <div style={{ color: '#16a34a', fontWeight: '800', fontSize: '12px', marginBottom: '8px' }}>{successMsg}</div>}
 
-      {(editing !== null || form.question_text || form.option_a) && (
+      {(showAdd || editing !== null) && (
         <div style={card}>
           <h3 style={{ margin: '0 0 8px' }}>{editing ? 'Edit Question' : 'Create Question'}</h3>
           <div style={{ display: 'grid', gap: '8px' }}>
@@ -1536,12 +1539,13 @@ function Questions() {
             />
             <div style={{ display: 'flex', gap: '6px' }}>
               <button type="button" style={btnPrimary} disabled={saving} onClick={save}>
-                {saving ? (editing ? 'Saving...' : 'Creating...') : editing ? 'Update Question' : 'Save Question'}
+                {saving ? (editing ? 'Saving...' : 'Creating...') : editing ? 'Update Question' : 'Create Question'}
               </button>
               <button
                 type="button"
                 style={btnGhost}
                 onClick={() => {
+                  setShowAdd(false);
                   setEditing(null);
                   setForm({ ...EMPTY_Q });
                 }}
@@ -1572,6 +1576,7 @@ function Questions() {
                 style={btnGhost}
                 onClick={() => {
                   setEditing(q);
+                  setShowAdd(true);
                   setForm({
                     question_text: q.question_text || '',
                     option_a: q.option_a || '',
@@ -1894,32 +1899,98 @@ function Investments() {
   const [gameId, setGameId] = useState('');
   const [rows, setRows] = useState<any[]>([]);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [roundFilter, setRoundFilter] = useState('');
+  const [studentSearch, setStudentSearch] = useState('');
+  const [optionFilter, setOptionFilter] = useState('');
+  const [resultFilter, setResultFilter] = useState('');
 
   useEffect(() => {
     if (!gameId) return;
+    setLoading(true);
+    setError('');
     adminApi
       .gameTrades(gameId)
-      .then((d) => setRows(d.trades))
-      .catch((err: any) => setError(err?.message || 'Failed.'));
+      .then((d) => setRows(d.trades || []))
+      .catch((err: any) => setError(err?.message || 'Failed to load order book.'))
+      .finally(() => setLoading(false));
   }, [gameId]);
+
+  const filtered = rows.filter((t) => {
+    if (roundFilter && String(t.round_number) !== roundFilter) return false;
+    if (studentSearch && !String(t.player_name || '').toLowerCase().includes(studentSearch.toLowerCase())) return false;
+    if (optionFilter && String(t.selected_option || '').toUpperCase() !== optionFilter.toUpperCase()) return false;
+    if (resultFilter === 'won' && !t.is_correct) return false;
+    if (resultFilter === 'lost' && t.is_correct) return false;
+    return true;
+  });
+
+  const availableRounds = Array.from(new Set(rows.map((r) => r.round_number))).sort((a: any, b: any) => Number(a) - Number(b));
 
   return (
     <div>
-      <GamePicker value={gameId} onChange={setGameId} />
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+        <GamePicker value={gameId} onChange={setGameId} />
+        <select
+          style={{ ...inputStyle, maxWidth: '140px', marginBottom: '12px' }}
+          value={roundFilter}
+          onChange={(e) => setRoundFilter(e.target.value)}
+        >
+          <option value="">All Rounds</option>
+          {availableRounds.map((r: any) => (
+            <option key={r} value={r}>Round {r}</option>
+          ))}
+        </select>
+        <input
+          style={{ ...inputStyle, maxWidth: '180px', marginBottom: '12px' }}
+          placeholder="Filter student..."
+          value={studentSearch}
+          onChange={(e) => setStudentSearch(e.target.value)}
+        />
+        <select
+          style={{ ...inputStyle, maxWidth: '140px', marginBottom: '12px' }}
+          value={optionFilter}
+          onChange={(e) => setOptionFilter(e.target.value)}
+        >
+          <option value="">All Options</option>
+          <option value="A">Option A</option>
+          <option value="B">Option B</option>
+          <option value="C">Option C</option>
+          <option value="D">Option D</option>
+        </select>
+        <select
+          style={{ ...inputStyle, maxWidth: '130px', marginBottom: '12px' }}
+          value={resultFilter}
+          onChange={(e) => setResultFilter(e.target.value)}
+        >
+          <option value="">All Results</option>
+          <option value="won">Won Only</option>
+          <option value="lost">Lost Only</option>
+        </select>
+      </div>
+
       <Err msg={error} />
-      {rows.slice(0, 200).map((t: any, i: number) => (
-        <div key={i} style={{ ...card, padding: '10px 14px', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <div>
-            <strong>R{t.round_number}</strong> · <strong>{t.player_name}</strong> · {t.is_correct ? '✅ Won' : '❌ Lost'} · Option {t.selected_option}
-            <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '2px' }}>{t.question_text}</div>
-          </div>
-          <div style={{ fontWeight: '700', textAlign: 'right' }}>
-            <div>Bid: ₹{Number(t.bid_amount).toLocaleString()} ({t.risk_percent}%)</div>
-            <div style={{ color: Number(t.profit_loss) >= 0 ? '#16a34a' : '#dc2626' }}>{t.financial_change}</div>
-          </div>
+
+      {loading ? (
+        <Loading label="LOADING ORDER BOOK & LOGS" />
+      ) : filtered.length === 0 ? (
+        <div style={{ ...card, textAlign: 'center', color: '#6b7280' }}>
+          {gameId ? 'No matching orders or trade records found.' : 'Select a game to view orders.'}
         </div>
-      ))}
-      {gameId && rows.length === 0 && <div style={{ ...card, textAlign: 'center', color: '#6b7280' }}>No trades recorded yet.</div>}
+      ) : (
+        filtered.slice(0, 200).map((t: any, i: number) => (
+          <div key={i} style={{ ...card, padding: '10px 14px', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <strong>R{t.round_number}</strong> · <strong>{t.player_name}</strong> · {t.is_correct ? '✅ Won' : '❌ Lost'} · Option <span style={{ fontWeight: '800', color: '#2563eb' }}>{t.selected_option}</span>
+              <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '2px' }}>{t.question_text}</div>
+            </div>
+            <div style={{ fontWeight: '700', textAlign: 'right' }}>
+              <div>Bid: ₹{Number(t.bid_amount || 0).toLocaleString()} ({t.risk_percent}%)</div>
+              <div style={{ color: Number(t.profit_loss || 0) >= 0 ? '#16a34a' : '#dc2626' }}>{t.financial_change}</div>
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }

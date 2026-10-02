@@ -329,4 +329,3 @@ def check_answer_row(question_row, selected_option):
     return {"valid": True, "is_correct": is_correct,
             "correct_answer": target_correct,
             "explanation": question_row.get("explanation", "") or ""}
-

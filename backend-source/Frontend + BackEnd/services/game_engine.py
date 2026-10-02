@@ -116,14 +116,20 @@ def ensure_player(game, user):
     if player:
         return player
     starting = float(game.get("starting_capital", 1000))
-    player = gs.gw_insert("game_players", {
-        "id": str(uuid.uuid4()),
-        "game_id": str(game["id"]), "user_id": str(user["id"]),
-        "current_capital": starting, "starting_capital": starting,
-        "total_profit_loss": 0, "score": 0, "status": "active",
-    })
-    _record_tx(game["id"], user["id"], None, "starting_capital", starting, starting)
-    return player
+    try:
+        player = gs.gw_insert("game_players", {
+            "id": str(uuid.uuid4()),
+            "game_id": str(game["id"]), "user_id": str(user["id"]),
+            "current_capital": starting, "starting_capital": starting,
+            "total_profit_loss": 0, "score": 0, "status": "active",
+        })
+        _record_tx(game["id"], user["id"], None, "starting_capital", starting, starting)
+        return player
+    except Exception:
+        p = get_player(game["id"], user["id"])
+        if p:
+            return p
+        raise
 
 
 # ---------------- rounds ----------------
@@ -139,12 +145,18 @@ def ensure_round(game, round_number):
     if not gq:
         return None
     duration = gq.get("duration_seconds") or game.get("default_question_duration", 15)
-    return gs.gw_insert("rounds", {
-        "id": str(uuid.uuid4()),
-        "game_id": game_id, "round_number": int(round_number),
-        "question_id": str(gq.get("question_id")),
-        "status": "question_open", "started_at": gs.utcnow_iso(),
-    })
+    try:
+        return gs.gw_insert("rounds", {
+            "id": str(uuid.uuid4()),
+            "game_id": game_id, "round_number": int(round_number),
+            "question_id": str(gq.get("question_id")),
+            "status": "question_open", "started_at": gs.utcnow_iso(),
+        })
+    except Exception:
+        rows = gs.gw_select("rounds", {"game_id": game_id, "round_number": int(round_number)}, limit=1)
+        if rows:
+            return rows[0]
+        raise
 
 
 def player_answered_rounds(game_id, user_id):
@@ -509,25 +521,28 @@ def submit_position(game, user, data):
         financial_change = "-{}".format(_fmt_money(loss)) if loss else "0"
 
     risk_label = "{}% ({}X)".format(risk_percent, multiplier) if multiplier else "NO RISK"
-    answer = gs.gw_insert("answers", {
-        "id": str(uuid.uuid4()),
-        "round_id": str(round_row["id"]), "game_id": str(game["id"]), "user_id": str(user["id"]),
-        "selected_option": selected_option, "is_correct": is_correct,
-        "timed_out": False,
-    })
-    # NOTE: only schema columns on positions (see migration 001).
-    # Display fields (financial_change, previous/capital_after, risk_label)
-    # are derived at read time from positions + transactions.
-    gs.gw_insert("positions", {
-        "id": str(uuid.uuid4()),
-        "round_id": str(round_row["id"]), "game_id": str(game["id"]), "user_id": str(user["id"]),
-        "risk_percent": risk_percent, "bid_amount": bid, "multiplier": multiplier,
-        "potential_profit": (0 if multiplier == 0 else round(bid * multiplier, 2)),
-        "potential_loss": 0 if multiplier == 0 else bid,
-        "result": "win" if is_correct else "loss",
-        "profit_loss": (profit if is_correct else -loss),
-        "settled_at": gs.utcnow_iso(),
-    })
+    try:
+        answer = gs.gw_insert("answers", {
+            "id": str(uuid.uuid4()),
+            "round_id": str(round_row["id"]), "game_id": str(game["id"]), "user_id": str(user["id"]),
+            "selected_option": selected_option, "is_correct": is_correct,
+            "timed_out": False,
+        })
+        gs.gw_insert("positions", {
+            "id": str(uuid.uuid4()),
+            "round_id": str(round_row["id"]), "game_id": str(game["id"]), "user_id": str(user["id"]),
+            "risk_percent": risk_percent, "bid_amount": bid, "multiplier": multiplier,
+            "potential_profit": (0 if multiplier == 0 else round(bid * multiplier, 2)),
+            "potential_loss": 0 if multiplier == 0 else bid,
+            "result": "win" if is_correct else "loss",
+            "profit_loss": (profit if is_correct else -loss),
+            "settled_at": gs.utcnow_iso(),
+        })
+    except Exception as e:
+        if "duplicate" in str(e).lower() or "unique" in str(e).lower() or "23505" in str(e):
+            return {"success": False, "message": "Position already locked for this round."}, 400
+        raise
+
     gs.gw_update("game_players",
                  {"game_id": str(game["id"]), "user_id": str(user["id"])},
                  {"current_capital": new_capital,
