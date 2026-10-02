@@ -1145,7 +1145,10 @@ function Students() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(true);
+  const [addLoading, setAddLoading] = useState(false);
+  const [statusLoadingId, setStatusLoadingId] = useState<string | null>(null);
   const [detail, setDetail] = useState<any>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'participant' });
@@ -1179,24 +1182,59 @@ function Students() {
   };
 
   const toggleStatus = async (id: string, cur: string) => {
+    if (statusLoadingId) return;
+    setStatusLoadingId(id);
+    setError('');
+    setSuccessMsg('');
     try {
+      const newStatus = cur === 'active' ? 'disabled' : 'active';
       if (cur === 'active') await adminApi.disableStudent(id);
       else await adminApi.enableStudent(id);
-      await load();
-      if (detail?.id === id) await openDetail(id);
+      setList((prev) => prev.map((s) => (s.id === id ? { ...s, status: newStatus } : s)));
+      if (detail?.id === id) setDetail((prev: any) => (prev ? { ...prev, status: newStatus } : null));
+      setSuccessMsg(`Student status updated to ${newStatus}.`);
     } catch (err: any) {
       setError(err?.message || 'Status change failed.');
+    } finally {
+      setStatusLoadingId(null);
     }
   };
 
   const addStudent = async () => {
+    if (addLoading) return;
+    setError('');
+    setSuccessMsg('');
+    if (!form.name.trim()) {
+      setError('Student name is required.');
+      return;
+    }
+    if (!form.email.trim() || !form.email.includes('@')) {
+      setError('A valid email address is required.');
+      return;
+    }
+    if (!form.password || form.password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    setAddLoading(true);
     try {
-      await adminApi.createStudent(form);
+      const data: any = await adminApi.createStudent(form);
+      const newStudent = data.student || {
+        ...form,
+        id: data.id || `temp-${Date.now()}`,
+        status: 'active',
+        games_played: 0,
+        total_pl: 0,
+        total_score: 0,
+      };
+      setList((prev) => [newStudent, ...prev]);
       setShowAdd(false);
       setForm({ name: '', email: '', password: '', role: 'participant' });
-      await load();
+      setSuccessMsg('Student created successfully.');
     } catch (err: any) {
       setError(err?.message || 'Create failed.');
+    } finally {
+      setAddLoading(false);
     }
   };
 
@@ -1224,6 +1262,7 @@ function Students() {
         </button>
       </div>
       <Err msg={error} />
+      {successMsg && <div style={{ color: '#16a34a', fontWeight: '800', fontSize: '12px', marginBottom: '8px' }}>{successMsg}</div>}
 
       {showAdd && (
         <div style={card}>
@@ -1236,9 +1275,14 @@ function Students() {
               <option value="participant">participant</option>
               <option value="admin">admin</option>
             </select>
-            <button type="button" style={btnPrimary} onClick={addStudent}>
-              Create
-            </button>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button type="button" style={btnPrimary} disabled={addLoading} onClick={addStudent}>
+                {addLoading ? 'Creating...' : 'Create Student'}
+              </button>
+              <button type="button" style={btnGhost} onClick={() => setShowAdd(false)}>
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1253,15 +1297,20 @@ function Students() {
             <div style={{ fontSize: '13px' }}>
               <strong>{s.name}</strong> · {s.email} · {s.role} · <span style={{ color: s.status === 'active' ? '#16a34a' : '#dc2626' }}>{s.status}</span>
               <div style={{ color: '#6b7280', marginTop: '2px' }}>
-                Games: {s.games_played} · P/L: ₹{Number(s.total_pl).toLocaleString()} · Score: {s.total_score}
+                Games: {s.games_played} · P/L: ₹{Number(s.total_pl || 0).toLocaleString()} · Score: {s.total_score || 0}
               </div>
             </div>
             <div style={{ display: 'flex', gap: '6px' }}>
               <button type="button" style={btnGhost} onClick={() => openDetail(s.id)}>
                 View
               </button>
-              <button type="button" style={btnGhost} onClick={() => toggleStatus(s.id, s.status)}>
-                {s.status === 'active' ? 'Disable' : 'Enable'}
+              <button
+                type="button"
+                style={btnGhost}
+                disabled={statusLoadingId === s.id}
+                onClick={() => toggleStatus(s.id, s.status)}
+              >
+                {statusLoadingId === s.id ? 'Updating...' : s.status === 'active' ? 'Disable' : 'Enable'}
               </button>
             </div>
           </div>
@@ -1272,7 +1321,7 @@ function Students() {
         <div style={card}>
           <h3 style={{ margin: '0 0 8px' }}>Profile: {detail.name}</h3>
           <div style={{ fontSize: '13px', marginBottom: '8px' }}>
-            {detail.email} · {detail.role} · {detail.status} · Games: {detail.games_played} · P/L: ₹{Number(detail.total_pl).toLocaleString()}
+            {detail.email} · {detail.role} · {detail.status} · Games: {detail.games_played} · P/L: ₹{Number(detail.total_pl || 0).toLocaleString()}
           </div>
           <h4>Game History ({detail.history?.length || 0})</h4>
           {(detail.history || []).slice(0, 30).map((h: any, i: number) => (
@@ -1309,7 +1358,10 @@ const EMPTY_Q = {
 function Questions() {
   const [list, setList] = useState<any[]>([]);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [mutatingId, setMutatingId] = useState<string | null>(null);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({ ...EMPTY_Q });
 
@@ -1331,35 +1383,84 @@ function Questions() {
   }, []);
 
   const save = async () => {
+    if (saving) return;
+    setError('');
+    setSuccessMsg('');
+
+    // Client-side validation
+    if (!form.question_text.trim()) {
+      setError('Question text is required.');
+      return;
+    }
+    if (!form.option_a.trim() || !form.option_b.trim() || !form.option_c.trim() || !form.option_d.trim()) {
+      setError('All 4 options (A, B, C, D) are required.');
+      return;
+    }
+    if (!form.correct_option) {
+      setError('Please select the correct answer option.');
+      return;
+    }
+    if (!form.category.trim()) {
+      setError('Category is required.');
+      return;
+    }
+    const dur = Number(form.duration_seconds);
+    if (isNaN(dur) || dur < 5 || dur > 300) {
+      setError('Duration must be between 5 and 300 seconds.');
+      return;
+    }
+
+    setSaving(true);
     try {
       if (editing) {
-        await adminApi.updateQuestion(editing.id, form);
+        const res: any = await adminApi.updateQuestion(editing.id, form);
+        const updated = res.question || { ...editing, ...form };
+        setList((prev) => prev.map((q) => (q.id === editing.id ? updated : q)));
+        setSuccessMsg('Question updated successfully.');
       } else {
-        await adminApi.createQuestion(form);
+        const res: any = await adminApi.createQuestion(form);
+        const created = res.question || { ...form, id: res.id || `q-${Date.now()}` };
+        setList((prev) => [created, ...prev]);
+        setSuccessMsg('Question created successfully.');
       }
       setEditing(null);
       setForm({ ...EMPTY_Q });
-      await load();
     } catch (err: any) {
       setError(err?.message || 'Save failed.');
+    } finally {
+      setSaving(false);
     }
   };
 
   const archive = async (id: string) => {
+    if (mutatingId) return;
+    setMutatingId(id);
+    setError('');
+    setSuccessMsg('');
     try {
       await adminApi.archiveQuestion(id);
-      await load();
+      setList((prev) => prev.map((q) => (q.id === id ? { ...q, is_active: false } : q)));
+      setSuccessMsg('Question archived successfully.');
     } catch (err: any) {
       setError(err?.message || 'Archive failed.');
+    } finally {
+      setMutatingId(null);
     }
   };
 
   const del = async (id: string) => {
+    if (mutatingId) return;
+    setMutatingId(id);
+    setError('');
+    setSuccessMsg('');
     try {
       await adminApi.deleteQuestion(id);
-      await load();
+      setList((prev) => prev.filter((q) => q.id !== id));
+      setSuccessMsg('Question deleted successfully.');
     } catch (err: any) {
       setError(err?.message || 'Delete failed.');
+    } finally {
+      setMutatingId(null);
     }
   };
 
@@ -1372,6 +1473,8 @@ function Questions() {
           onClick={() => {
             setEditing(null);
             setForm({ ...EMPTY_Q });
+            setError('');
+            setSuccessMsg('');
           }}
         >
           + New Question
@@ -1381,14 +1484,15 @@ function Questions() {
         </button>
       </div>
       <Err msg={error} />
+      {successMsg && <div style={{ color: '#16a34a', fontWeight: '800', fontSize: '12px', marginBottom: '8px' }}>{successMsg}</div>}
 
-      {(editing !== null || form.question_text) && (
+      {(editing !== null || form.question_text || form.option_a) && (
         <div style={card}>
           <h3 style={{ margin: '0 0 8px' }}>{editing ? 'Edit Question' : 'Create Question'}</h3>
           <div style={{ display: 'grid', gap: '8px' }}>
             <textarea
               style={{ ...inputStyle, minHeight: '60px' }}
-              placeholder="Question text"
+              placeholder="Question text (e.g. What is the capital of France?)"
               value={form.question_text}
               onChange={(e) => setForm({ ...form, question_text: e.target.value })}
             />
@@ -1398,13 +1502,18 @@ function Questions() {
               <input style={inputStyle} placeholder="Option C" value={form.option_c} onChange={(e) => setForm({ ...form, option_c: e.target.value })} />
               <input style={inputStyle} placeholder="Option D" value={form.option_d} onChange={(e) => setForm({ ...form, option_d: e.target.value })} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '8px' }}>
-              <input
-                style={inputStyle}
-                placeholder="Correct Option (exact text or A/B/C/D)"
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
+              <select
+                style={{ ...inputStyle, fontWeight: '700' }}
                 value={form.correct_option}
                 onChange={(e) => setForm({ ...form, correct_option: e.target.value })}
-              />
+              >
+                <option value="">-- Select Correct Answer --</option>
+                <option value="Option A">Option A {form.option_a ? `(${form.option_a})` : ''}</option>
+                <option value="Option B">Option B {form.option_b ? `(${form.option_b})` : ''}</option>
+                <option value="Option C">Option C {form.option_c ? `(${form.option_c})` : ''}</option>
+                <option value="Option D">Option D {form.option_d ? `(${form.option_d})` : ''}</option>
+              </select>
               <input
                 style={inputStyle}
                 placeholder="Category"
@@ -1421,13 +1530,13 @@ function Questions() {
             </div>
             <textarea
               style={{ ...inputStyle, minHeight: '50px' }}
-              placeholder="Explanation"
+              placeholder="Explanation (Optional)"
               value={form.explanation}
               onChange={(e) => setForm({ ...form, explanation: e.target.value })}
             />
             <div style={{ display: 'flex', gap: '6px' }}>
-              <button type="button" style={btnPrimary} onClick={save}>
-                Save Question
+              <button type="button" style={btnPrimary} disabled={saving} onClick={save}>
+                {saving ? (editing ? 'Saving...' : 'Creating...') : editing ? 'Update Question' : 'Save Question'}
               </button>
               <button
                 type="button"
@@ -1463,16 +1572,37 @@ function Questions() {
                 style={btnGhost}
                 onClick={() => {
                   setEditing(q);
-                  setForm(q);
+                  setForm({
+                    question_text: q.question_text || '',
+                    option_a: q.option_a || '',
+                    option_b: q.option_b || '',
+                    option_c: q.option_c || '',
+                    option_d: q.option_d || '',
+                    correct_option: q.correct_option || '',
+                    explanation: q.explanation || '',
+                    category: q.category || 'Market Intelligence',
+                    duration_seconds: q.duration_seconds || 15,
+                    is_active: q.is_active !== undefined ? q.is_active : true,
+                  });
                 }}
               >
                 Edit
               </button>
-              <button type="button" style={btnGhost} onClick={() => archive(q.id)}>
-                Archive
+              <button
+                type="button"
+                style={btnGhost}
+                disabled={mutatingId === q.id}
+                onClick={() => archive(q.id)}
+              >
+                {mutatingId === q.id ? 'Archiving...' : 'Archive'}
               </button>
-              <button type="button" style={btnGhost} onClick={() => del(q.id)}>
-                Delete
+              <button
+                type="button"
+                style={btnGhost}
+                disabled={mutatingId === q.id}
+                onClick={() => del(q.id)}
+              >
+                {mutatingId === q.id ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
@@ -1488,7 +1618,10 @@ function Games() {
   const [list, setList] = useState<any[]>([]);
   const [allQuestions, setAllQuestions] = useState<any[]>([]);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [startingId, setStartingId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({
     name: '',
@@ -1518,8 +1651,33 @@ function Games() {
   }, []);
 
   const createGame = async () => {
+    if (creating) return;
+    setError('');
+    setSuccessMsg('');
+    if (!form.name.trim()) {
+      setError('Game name is required.');
+      return;
+    }
+    if (form.starting_capital <= 0) {
+      setError('Starting capital must be greater than zero.');
+      return;
+    }
+    if (form.min_risk > form.max_risk) {
+      setError('Min risk % cannot exceed Max risk %.');
+      return;
+    }
+    setCreating(true);
     try {
-      await adminApi.createGame(form);
+      const res: any = await adminApi.createGame(form);
+      const newGame = res.game || {
+        ...form,
+        id: res.id || `g-${Date.now()}`,
+        game_pin: res.game_pin || 'TESTPIN',
+        status: 'draft',
+        rounds: form.question_ids.length,
+        players: 0,
+      };
+      setList((prev) => [newGame, ...prev]);
       setShowAdd(false);
       setForm({
         name: '',
@@ -1529,9 +1687,27 @@ function Games() {
         default_question_duration: 15,
         question_ids: [],
       });
-      await load();
+      setSuccessMsg('Game created successfully.');
     } catch (err: any) {
       setError(err?.message || 'Create game failed.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleStartGame = async (gameId: string) => {
+    if (startingId) return;
+    setStartingId(gameId);
+    setError('');
+    setSuccessMsg('');
+    try {
+      await adminApi.controlGame(gameId, 'start');
+      setList((prev) => prev.map((g) => (g.id === gameId ? { ...g, status: 'live' } : g)));
+      setSuccessMsg('Game started successfully!');
+    } catch (err: any) {
+      setError(err?.message || 'Failed to start game.');
+    } finally {
+      setStartingId(null);
     }
   };
 
@@ -1548,7 +1724,15 @@ function Games() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-        <button type="button" style={btnPrimary} onClick={() => setShowAdd(!showAdd)}>
+        <button
+          type="button"
+          style={btnPrimary}
+          onClick={() => {
+            setShowAdd(!showAdd);
+            setError('');
+            setSuccessMsg('');
+          }}
+        >
           + Create Game
         </button>
         <button type="button" style={btnGhost} onClick={load}>
@@ -1556,6 +1740,7 @@ function Games() {
         </button>
       </div>
       <Err msg={error} />
+      {successMsg && <div style={{ color: '#16a34a', fontWeight: '800', fontSize: '12px', marginBottom: '8px' }}>{successMsg}</div>}
 
       {showAdd && (
         <div style={card}>
@@ -1586,33 +1771,37 @@ function Games() {
 
           <h4>Assign Questions ({form.question_ids.length} selected)</h4>
           <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '8px', marginBottom: '12px' }}>
-            {allQuestions.map((q) => {
-              const selected = form.question_ids.includes(q.id);
-              return (
-                <div
-                  key={q.id}
-                  onClick={() => toggleQuestionSelection(q.id)}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    background: selected ? 'rgba(0,0,0,0.06)' : 'transparent',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <span>{selected ? '☑' : '☐'}</span>
-                  <span>{q.question_text}</span>
-                </div>
-              );
-            })}
+            {allQuestions.length === 0 ? (
+              <div style={{ fontSize: '12px', color: '#9ca3af', padding: '8px' }}>No active questions available. Create questions first.</div>
+            ) : (
+              allQuestions.map((q) => {
+                const selected = form.question_ids.includes(q.id);
+                return (
+                  <div
+                    key={q.id}
+                    onClick={() => toggleQuestionSelection(q.id)}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      background: selected ? 'rgba(0,0,0,0.06)' : 'transparent',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <span>{selected ? '☑' : '☐'}</span>
+                    <span>{q.question_text}</span>
+                  </div>
+                );
+              })
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '6px' }}>
-            <button type="button" style={btnPrimary} onClick={createGame}>
-              Create Game
+            <button type="button" style={btnPrimary} disabled={creating} onClick={createGame}>
+              {creating ? 'Creating...' : 'Create Game'}
             </button>
             <button type="button" style={btnGhost} onClick={() => setShowAdd(false)}>
               Cancel
@@ -1626,23 +1815,50 @@ function Games() {
       ) : list.length === 0 ? (
         <div style={{ ...card, textAlign: 'center', color: '#6b7280', fontWeight: '700' }}>No games created yet.</div>
       ) : (
-        list.map((g) => (
-          <div key={g.id} style={{ ...card, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <div style={{ fontSize: '13px' }}>
-              <strong>{g.name}</strong> · PIN: <strong style={{ color: '#2563eb' }}>{g.game_pin}</strong> · Status: <span style={{ color: g.status === 'live' ? '#16a34a' : '#000' }}>{g.status}</span>
-              <div style={{ color: '#6b7280', fontSize: '12px', marginTop: '2px' }}>
-                Questions: {g.rounds} · Players: {g.players} · Cap: ₹{Number(g.starting_capital).toLocaleString()} · Risk: {g.min_risk}%-{g.max_risk}%
+        list.map((g) => {
+          const questionCount = g.rounds || (g.questions?.length) || 0;
+          const isDraft = g.status === 'draft';
+          const canStart = isDraft && questionCount > 0;
+
+          return (
+            <div key={g.id} style={{ ...card, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ fontSize: '13px' }}>
+                <strong>{g.name}</strong> · PIN: <strong style={{ color: '#2563eb' }}>{g.game_pin}</strong> · Status: <span style={{ color: g.status === 'live' ? '#16a34a' : '#000', fontWeight: '700' }}>{g.status.toUpperCase()}</span>
+                {isDraft && questionCount === 0 && (
+                  <span style={{ marginLeft: '8px', background: '#fef2f2', color: '#dc2626', fontSize: '11px', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                    0 questions assigned
+                  </span>
+                )}
+                <div style={{ color: '#6b7280', fontSize: '12px', marginTop: '2px' }}>
+                  Questions: {questionCount} · Players: {g.players || 0} · Cap: ₹{Number(g.starting_capital).toLocaleString()} · Risk: {g.min_risk}%-{g.max_risk}%
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                {isDraft && (
+                  canStart ? (
+                    <button
+                      type="button"
+                      style={btnSuccess}
+                      disabled={startingId === g.id}
+                      onClick={() => handleStartGame(g.id)}
+                    >
+                      {startingId === g.id ? 'Starting...' : 'Start Game'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      style={{ ...btnGhost, opacity: 0.5, cursor: 'not-allowed' }}
+                      disabled
+                      title="Assign questions before starting"
+                    >
+                      Assign Questions First
+                    </button>
+                  )
+                )}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {g.status === 'draft' && (
-                <button type="button" style={btnSuccess} onClick={() => adminApi.controlGame(g.id, 'start').then(load)}>
-                  Start
-                </button>
-              )}
-            </div>
-          </div>
-        ))
+          );
+        })
       )}
     </div>
   );
@@ -1781,6 +1997,7 @@ function Settings() {
   const [settings, setSettings] = useState<any>(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     adminApi
@@ -1790,14 +2007,18 @@ function Settings() {
   }, []);
 
   const save = async () => {
+    if (saving) return;
     setError('');
     setMsg('');
+    setSaving(true);
     try {
       const data = await adminApi.updateSettings(settings);
       setSettings(data.settings);
       setMsg('Settings saved successfully.');
     } catch (err: any) {
       setError(err?.message || 'Save failed.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1815,8 +2036,8 @@ function Settings() {
             <input style={inputStyle} type="number" value={settings[k]} onChange={(e) => setSettings({ ...settings, [k]: Number(e.target.value) })} />
           </div>
         ))}
-      <button type="button" style={btnPrimary} onClick={save}>
-        Save Settings
+      <button type="button" style={btnPrimary} disabled={saving} onClick={save}>
+        {saving ? 'Saving...' : 'Save Settings'}
       </button>
     </div>
   );

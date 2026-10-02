@@ -24,7 +24,7 @@ from services.auth_store import find_profile_by_email, find_profile_by_id
 from services.questions_service import validate_player_answer
 from services.verify_token import verify_token
 
-JOINABLE_STATUSES = ("waiting", "live")
+JOINABLE_STATUSES = ("draft", "waiting", "live", "paused", "market_closed")
 PLAYABLE_ROUND_STATUSES = ("question_open", "market_open")
 RISK_TIERS = ((25, 2), (50, 3), (101, 5))
 

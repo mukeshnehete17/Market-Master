@@ -334,8 +334,9 @@ def _student_aggregates(user_id):
 
 
 def list_students(search="", status_filter="", role_filter=""):
-    out = []
-    for p in list_profiles():
+    profiles = list_profiles()
+    filtered = []
+    for p in profiles:
         if search and search.lower() not in (
                 str(p.get("name", "")) + " " + str(p.get("email", ""))).lower():
             continue
@@ -343,9 +344,45 @@ def list_students(search="", status_filter="", role_filter=""):
             continue
         if role_filter and p.get("role") != role_filter:
             continue
-        row = dict(p)
-        row.update(_student_aggregates(p["id"]))
-        out.append(row)
+        filtered.append(dict(p))
+
+    if not filtered:
+        return []
+
+    # Batch fetch all game_players and active games in just 2 queries total
+    all_players = gs.gw_select("game_players")
+    all_games = gs.gw_select("games")
+    games_by_id = {str(g["id"]): g for g in all_games}
+
+    # Group players by user_id
+    players_by_user = {}
+    for p in all_players:
+        uid = str(p.get("user_id", ""))
+        if uid not in players_by_user:
+            players_by_user[uid] = []
+        players_by_user[uid].append(p)
+
+    out = []
+    for p in filtered:
+        uid = str(p["id"])
+        user_players = players_by_user.get(uid, [])
+        games_played = len(user_players)
+        total_pl = sum(float(pl.get("total_profit_loss", 0) or 0) for pl in user_players)
+        total_score = sum(int(pl.get("score", 0) or 0) for pl in user_players)
+        current_game = None
+        for pl in user_players:
+            g = games_by_id.get(str(pl.get("game_id")))
+            if g and g.get("status") in ("waiting", "live", "paused", "market_closed"):
+                current_game = {"id": g["id"], "name": g.get("name"),
+                                "game_pin": g.get("game_pin")}
+                break
+        p.update({
+            "games_played": games_played,
+            "total_pl": total_pl,
+            "total_score": total_score,
+            "current_game": current_game,
+        })
+        out.append(p)
     return out
 
 
@@ -358,10 +395,16 @@ def get_student_detail(user_id):
             "role": row.get("role"), "avatar": row.get("avatar"),
             "status": row.get("status")}
     safe.update(_student_aggregates(row["id"]))
+
+    user_players = gs.gw_select("game_players", {"user_id": str(row["id"])})
+    if not user_players:
+        safe["history"] = []
+        return safe
+
+    all_games = {str(g["id"]): g for g in gs.gw_select("games")}
     history = []
-    for p in gs.gw_select("game_players", {"user_id": str(row["id"])}):
-        g = gs.gw_select("games", {"id": str(p.get("game_id"))}, limit=1)
-        g = g[0] if g else {}
+    for p in user_players:
+        g = all_games.get(str(p.get("game_id")), {})
         for h in engine.player_history(
                 {"id": str(p.get("game_id")),
                  "starting_capital": p.get("starting_capital", 0)}, {"id": str(row["id"])}):
@@ -491,11 +534,27 @@ def _validate_game_payload(data, partial=False):
 
 def list_games():
     games = gs.gw_select("games")
+    if not games:
+        return []
+    all_gqs = gs.gw_select("game_questions")
+    all_gps = gs.gw_select("game_players")
+
+    rounds_count = {}
+    for gq in all_gqs:
+        gid = str(gq.get("game_id", ""))
+        rounds_count[gid] = rounds_count.get(gid, 0) + 1
+
+    players_count = {}
+    for gp in all_gps:
+        gid = str(gp.get("game_id", ""))
+        players_count[gid] = players_count.get(gid, 0) + 1
+
     out = []
     for g in games:
         g = dict(g)
-        g["rounds"] = len(gs.gw_select("game_questions", {"game_id": str(g.get("id"))}))
-        g["players"] = len(gs.gw_select("game_players", {"game_id": str(g.get("id"))}))
+        gid = str(g.get("id", ""))
+        g["rounds"] = rounds_count.get(gid, 0)
+        g["players"] = players_count.get(gid, 0)
         out.append(g)
     return out
 
@@ -556,14 +615,19 @@ def set_game_questions(game_id, question_ids):
         qid = gs.qid_str(q)
         if not qid or qid in seen:
             continue
-        if not gs.get_question_row(qid):
-            return "Question not found: {}".format(qid)
         seen.add(qid)
         ordered.append(qid)
+
+    all_q_rows = {str(q.get("id")): q for q in gs.gw_select("questions")}
+    for qid in ordered:
+        if qid not in all_q_rows:
+            return "Question not found: {}".format(qid)
+
     for r in gs.gw_select("game_questions", {"game_id": str(game_id)}):
         gs.gw_delete("game_questions", {"id": str(r.get("id"))})
+
     for i, qid in enumerate(ordered, start=1):
-        qrow = gs.get_question_row(qid)
+        qrow = all_q_rows[qid]
         gs.gw_insert("game_questions", {
             "id": str(uuid.uuid4()), "game_id": str(game_id),
             "question_id": qid, "round_number": i,
@@ -762,20 +826,29 @@ def game_trades(game_id):
     if not games:
         return None
     rounds = {str(r.get("id")): r for r in gs.gw_select("rounds", {"game_id": game_id})}
-    players = {str(p.get("user_id")): p for p in gs.gw_select("game_players", {"game_id": game_id})}
+    answers = gs.gw_select("answers", {"game_id": game_id})
+    if not answers:
+        return []
+
+    positions = gs.gw_select("positions", {"game_id": game_id})
+    pos_lookup = {(str(p.get("round_id")), str(p.get("user_id"))): p for p in positions}
+
+    all_q_rows = {str(q.get("id")): q for q in gs.gw_select("questions")}
+    all_profiles = {str(p.get("id")): p for p in list_profiles()}
+
     out = []
-    for a in gs.gw_select("answers", {"game_id": game_id}):
+    for a in answers:
         rnd = rounds.get(str(a.get("round_id")))
         if not rnd:
             continue
-        qrow = gs.get_question_row(rnd.get("question_id")) or {}
-        pos = next((p for p in gs.gw_select("positions", {"game_id": game_id})
-                    if str(p.get("round_id")) == str(rnd.get("id"))
-                    and str(p.get("user_id")) == str(a.get("user_id"))), {})
-        view = engine._position_view(game_id, str(a.get("user_id")), str(rnd.get("id")), pos)
-        prof = find_profile_by_id(a.get("user_id", ""))
+        qid = str(rnd.get("question_id", ""))
+        qrow = all_q_rows.get(qid, {})
+        uid = str(a.get("user_id", ""))
+        pos = pos_lookup.get((str(rnd.get("id")), uid), {})
+        view = engine._position_view(game_id, uid, str(rnd.get("id")), pos)
+        prof = all_profiles.get(uid)
         out.append({"round_number": int(rnd.get("round_number", 0)),
-                    "player_name": (prof or {}).get("name", str(a.get("user_id"))),
+                    "player_name": (prof or {}).get("name", uid),
                     "question_text": qrow.get("question_text", ""),
                     "selected_option": a.get("selected_option", ""),
                     "is_correct": bool(a.get("is_correct", False)),

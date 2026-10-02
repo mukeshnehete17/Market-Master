@@ -12,8 +12,10 @@ import sys
 
 sys.path.insert(0, "backend-source/Frontend + BackEnd")
 
-from dotenv import load_dotenv  # noqa: E402
+from dotenv import load_dotenv
 
+ENV_PATH = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(ENV_PATH)
 load_dotenv("backend-source/Frontend + BackEnd/.env")
 
 PASS, FAIL = [], []

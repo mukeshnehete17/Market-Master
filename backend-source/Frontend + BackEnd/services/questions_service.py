@@ -46,8 +46,37 @@ def count_active_questions():
 
 # ---------------- Admin API ----------------
 
-def _validate_question_payload(data, partial=False):
-    """Returns error string or None. Never trusts client blindly."""
+def _resolve_correct_option(data, existing=None):
+    """Resolve correct_option from letter (A/B/C/D), label (Option A..), or matching option text."""
+    raw_corr = str(data.get("correct_option", "") or "").strip()
+    if not raw_corr:
+        return None, "correct_option is required."
+
+    opt_a = str(data.get("option_a") if "option_a" in data else (existing.get("option_a") if existing else "") or "").strip()
+    opt_b = str(data.get("option_b") if "option_b" in data else (existing.get("option_b") if existing else "") or "").strip()
+    opt_c = str(data.get("option_c") if "option_c" in data else (existing.get("option_c") if existing else "") or "").strip()
+    opt_d = str(data.get("option_d") if "option_d" in data else (existing.get("option_d") if existing else "") or "").strip()
+
+    corr_upper = raw_corr.upper()
+    if corr_upper in ("A", "OPTION A") and opt_a:
+        return opt_a, None
+    if corr_upper in ("B", "OPTION B") and opt_b:
+        return opt_b, None
+    if corr_upper in ("C", "OPTION C") and opt_c:
+        return opt_c, None
+    if corr_upper in ("D", "OPTION D") and opt_d:
+        return opt_d, None
+
+    # Match exact or case-insensitive option text
+    for opt in (opt_a, opt_b, opt_c, opt_d):
+        if opt and opt.lower() == raw_corr.lower():
+            return opt, None
+
+    return None, "correct_option must match one of Option A, B, C, or D."
+
+
+def _validate_question_payload(data, partial=False, existing=None):
+    """Returns (resolved_correct_option, error_string). Never trusts client blindly."""
     def need(key):
         if partial and key not in data:
             return None
@@ -56,35 +85,37 @@ def _validate_question_payload(data, partial=False):
             return "{} is required.".format(key)
         return None
 
-    for key in ("question_text", "option_a", "option_b", "option_c", "option_d",
-                "correct_option", "category"):
+    for key in ("question_text", "option_a", "option_b", "option_c", "option_d", "category"):
         err = need(key)
         if err:
-            return err
-    if (not partial or "correct_option" in data):
-        options = [str(data.get(k, "") or "").strip().lower()
-                   for k in ("option_a", "option_b", "option_c", "option_d")]
-        if str(data.get("correct_option", "") or "").strip().lower() not in options:
-            return "correct_option must match one of the four options."
+            return None, err
+
+    resolved_corr = None
+    if not partial or "correct_option" in data or any(k in data for k in ("option_a", "option_b", "option_c", "option_d")):
+        resolved_corr, err = _resolve_correct_option(data, existing)
+        if err:
+            return None, err
+
     if "duration_seconds" in data and data["duration_seconds"] not in (None, ""):
         try:
             dur = int(data["duration_seconds"])
         except (ValueError, TypeError):
-            return "duration_seconds must be an integer."
+            return None, "duration_seconds must be an integer."
         if dur < 5 or dur > 300:
-            return "duration_seconds must be between 5 and 300."
-    return None
+            return None, "duration_seconds must be between 5 and 300."
+    return resolved_corr, None
 
 
 def admin_list_questions(include_inactive=True):
     rows = gw_select("questions")
     if not include_inactive:
         rows = [r for r in rows if r.get("is_active")]
+    rows.sort(key=lambda q: str(q.get("created_at", "")), reverse=True)
     return rows
 
 
 def admin_create_question(data):
-    err = _validate_question_payload(data)
+    resolved_corr, err = _validate_question_payload(data)
     if err:
         return None, err
     payload = {
@@ -93,7 +124,7 @@ def admin_create_question(data):
         "option_b": str(data["option_b"]).strip(),
         "option_c": str(data["option_c"]).strip(),
         "option_d": str(data["option_d"]).strip(),
-        "correct_option": str(data["correct_option"]).strip(),
+        "correct_option": resolved_corr,
         "explanation": str(data.get("explanation", "") or "").strip(),
         "category": str(data.get("category", "Market Intelligence")).strip() or "Market Intelligence",
         "duration_seconds": int(data.get("duration_seconds", 15) or 15),
@@ -103,28 +134,24 @@ def admin_create_question(data):
 
 
 def admin_update_question(qid, data):
-    err = _validate_question_payload(data, partial=True)
-    if err:
-        return None, err
     existing = get_question_row(qid)
     if not existing:
         return None, "Question not found."
+    resolved_corr, err = _validate_question_payload(data, partial=True, existing=existing)
+    if err:
+        return None, err
     patch = {}
     for key in ("question_text", "option_a", "option_b", "option_c", "option_d",
-                "correct_option", "explanation", "category"):
+                "explanation", "category"):
         if key in data:
             patch[key] = str(data[key] or "").strip()
+    if resolved_corr:
+        patch["correct_option"] = resolved_corr
     if "duration_seconds" in data and data["duration_seconds"] not in (None, ""):
         patch["duration_seconds"] = int(data["duration_seconds"])
     if "is_active" in data:
         patch["is_active"] = bool(data["is_active"])
-    # Re-validate merged correct_option against merged options.
-    merged = dict(existing)
-    merged.update(patch)
-    options = [str(merged.get(k, "") or "").strip().lower()
-               for k in ("option_a", "option_b", "option_c", "option_d")]
-    if str(merged.get("correct_option", "") or "").strip().lower() not in options:
-        return None, "correct_option must match one of the four options."
+
     n = gw_update("questions", {"id": qid_str(qid)}, patch)
     if not n:
         return None, "Question not found."

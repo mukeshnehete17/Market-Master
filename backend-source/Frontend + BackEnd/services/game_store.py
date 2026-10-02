@@ -279,17 +279,54 @@ def check_answer_row(question_row, selected_option):
     """Validate an option against a question row (server-side)."""
     if not question_row:
         return {"valid": False, "is_correct": False, "explanation": "Question not found."}
-    options = [question_row.get("option_a", ""), question_row.get("option_b", ""),
-               question_row.get("option_c", ""), question_row.get("option_d", "")]
+    if not question_row.get("is_active", True):
+        return {"valid": False, "is_correct": False, "explanation": "Question is archived."}
+
+    opt_a = str(question_row.get("option_a", "")).strip()
+    opt_b = str(question_row.get("option_b", "")).strip()
+    opt_c = str(question_row.get("option_c", "")).strip()
+    opt_d = str(question_row.get("option_d", "")).strip()
+    options = [opt_a, opt_b, opt_c, opt_d]
+
     sel = str(selected_option or "").strip()
     if not sel:
         return {"valid": False, "is_correct": False, "explanation": "Option must be selected."}
-    if sel.lower() not in [str(o).strip().lower() for o in options]:
+
+    # Resolve sel if passed as 'A', 'Option A', etc.
+    sel_norm = sel.lower()
+    matched_opt = None
+    if sel_norm in ("a", "option a", "opt a", "option_a"):
+        matched_opt = opt_a
+    elif sel_norm in ("b", "option b", "opt b", "option_b"):
+        matched_opt = opt_b
+    elif sel_norm in ("c", "option c", "opt c", "option_c"):
+        matched_opt = opt_c
+    elif sel_norm in ("d", "option d", "opt d", "option_d"):
+        matched_opt = opt_d
+    else:
+        for opt in options:
+            if sel_norm == opt.lower():
+                matched_opt = opt
+                break
+
+    if matched_opt is None:
         return {"valid": False, "is_correct": False, "explanation": "Invalid option."}
-    if not question_row.get("is_active", True):
-        return {"valid": False, "is_correct": False, "explanation": "Question is archived."}
-    correct = str(question_row.get("correct_option", ""))
-    is_correct = sel.lower() == correct.strip().lower()
+
+    correct = str(question_row.get("correct_option", "")).strip()
+    correct_norm = correct.lower()
+    target_correct = correct
+    if correct_norm in ("a", "option a", "opt a", "option_a"):
+        target_correct = opt_a
+    elif correct_norm in ("b", "option b", "opt b", "option_b"):
+        target_correct = opt_b
+    elif correct_norm in ("c", "option c", "opt c", "option_c"):
+        target_correct = opt_c
+    elif correct_norm in ("d", "option d", "opt d", "option_d"):
+        target_correct = opt_d
+
+    is_correct = (matched_opt.lower() == target_correct.lower()) or (sel_norm == correct_norm)
+
     return {"valid": True, "is_correct": is_correct,
-            "correct_answer": correct,
+            "correct_answer": target_correct,
             "explanation": question_row.get("explanation", "") or ""}
+
