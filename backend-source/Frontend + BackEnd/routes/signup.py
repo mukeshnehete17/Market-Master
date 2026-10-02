@@ -1,10 +1,10 @@
 from flask import request, jsonify, session
 
-from services.auth_service import login as login_user
+from services.auth_service import signup as signup_user
 from services.create_token import create_token
 
 
-def login():
+def signup():
     data = request.get_json(silent=True)
 
     if not data:
@@ -13,20 +13,17 @@ def login():
             "message": "Request body is required."
         }), 400
 
-    # Preferred: { email, password }. Legacy clients sent { user_id, password },
-    # where user_id may be an email or an old demo id — both still accepted.
-    identifier = data.get("email") or data.get("user_id") or ""
-    password = data.get("password") or ""
-
-    if not identifier or not password:
-        return jsonify({
-            "success": False,
-            "message": "Email and password are required."
-        }), 400
-
-    user, error, status = login_user(identifier, password)
+    # NOTE: any client-supplied 'role' is intentionally ignored;
+    # services/auth_service.py always creates role='participant'.
+    user, error = signup_user(
+        name=data.get("name", ""),
+        email=data.get("email", ""),
+        password=data.get("password", ""),
+        confirm_password=data.get("confirm_password", ""),
+    )
 
     if error:
+        status = 409 if "already exists" in error else 400
         return jsonify({
             "success": False,
             "message": error,
@@ -34,6 +31,7 @@ def login():
 
     token = create_token(user)
 
+    # Establish Flask session (auto-login after signup).
     session['user_id'] = user['id']
     session['player_name'] = user['name']
     session['email'] = user.get('email', '')
@@ -42,7 +40,7 @@ def login():
 
     return jsonify({
         "success": True,
-        "message": "Login successful.",
+        "message": "Account created successfully.",
         "token": token,
         "user": user,
-    }), 200
+    }), 201

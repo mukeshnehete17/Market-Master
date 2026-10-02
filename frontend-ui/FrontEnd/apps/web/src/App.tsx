@@ -7,6 +7,7 @@ import { Login } from './components/Login';
 import { Leaderboard } from './components/Leaderboard';
 import { History } from './components/History';
 import { BottomNav, type TabType } from './components/BottomNav';
+import { AdminPanel } from './components/admin/AdminPanel';
 import { fetchCurrentUser, logoutUser } from './api/auth';
 import type { User } from './types/api';
 
@@ -45,6 +46,8 @@ export default function App() {
     setSession(null);
     setActiveTab('game');
   };
+
+  const isAdmin = currentUser?.role === 'admin';
 
   if (isCheckingAuth) {
     return (
@@ -106,7 +109,13 @@ export default function App() {
                 </section>
               )}
 
-              <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+              {activeTab === 'admin' && isAdmin && (
+                <section className="join-section" aria-label="Admin Console">
+                  <AdminPanel />
+                </section>
+              )}
+
+              <BottomNav activeTab={activeTab} onTabChange={setActiveTab} showAdmin={isAdmin} />
             </>
           )}
         </main>

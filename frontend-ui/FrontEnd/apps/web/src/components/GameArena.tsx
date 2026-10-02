@@ -65,7 +65,7 @@ export function GameArena({ callsign, onExit }: Props) {
   const [selectedRisk, setSelectedRisk] = useState<RiskLevel>('none');
 
   const [arenaState, setArenaState] = useState<
-    'loading' | 'question' | 'locked' | 'result' | 'gameover'
+    'loading' | 'waiting' | 'question' | 'locked' | 'result' | 'gameover'
   >('loading');
 
   const [pendingPosition, setPendingPosition] = useState<PendingPosition | null>(null);
@@ -77,15 +77,18 @@ export function GameArena({ callsign, onExit }: Props) {
   const [confettiTrigger, setConfettiTrigger] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [waitMessage, setWaitMessage] = useState('');
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const marketPollRef = useRef<NodeJS.Timeout | null>(null);
+  const waitPollRef = useRef<NodeJS.Timeout | null>(null);
 
   // Clear timers on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (marketPollRef.current) clearInterval(marketPollRef.current);
+      if (waitPollRef.current) clearTimeout(waitPollRef.current);
     };
   }, []);
 
@@ -106,6 +109,17 @@ export function GameArena({ callsign, onExit }: Props) {
       if (data.game_state === 'gameover') {
         if (data.summary) setGameSummary(data.summary);
         setArenaState('gameover');
+        return;
+      }
+
+      if (data.game_state === 'waiting' || data.game_state === 'paused') {
+        // Game not live yet (admin has not started it / paused). Poll lightly.
+        setArenaState('waiting');
+        setWaitMessage(data.message || '');
+        if (waitPollRef.current) clearTimeout(waitPollRef.current);
+        waitPollRef.current = setTimeout(() => {
+          syncGameState();
+        }, 5000);
         return;
       }
 
@@ -402,6 +416,39 @@ export function GameArena({ callsign, onExit }: Props) {
           <p style={{ color: '#666', fontSize: '14px', marginTop: '6px' }}>
             Fetching authoritative game data from server.
           </p>
+        </div>
+      )}
+
+      {/* Waiting State (game not live yet) */}
+      {arenaState === 'waiting' && (
+        <div
+          className="arena-card"
+          style={{ textAlign: 'center', padding: '60px 20px' }}
+        >
+          <div style={{ fontSize: '32px', marginBottom: '14px' }}>⏳</div>
+          <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>
+            Waiting For Market Open
+          </h2>
+          <p style={{ color: '#666', fontSize: '14px', marginTop: '6px' }}>
+            {waitMessage || 'The admin has not started this game yet. Stay ready.'}
+          </p>
+          <button
+            type="button"
+            onClick={syncGameState}
+            style={{
+              marginTop: '14px',
+              padding: '10px 20px',
+              borderRadius: '12px',
+              background: '#000',
+              color: '#fff',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: '800',
+              fontSize: '13px',
+            }}
+          >
+            🔄 Check Again
+          </button>
         </div>
       )}
 

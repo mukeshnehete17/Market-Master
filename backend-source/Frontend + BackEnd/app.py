@@ -1,6 +1,14 @@
 import os
 from flask import Flask
 
+try:
+    # Load backend .env for local development (optional, env vars still work).
+    from dotenv import load_dotenv  # type: ignore
+
+    load_dotenv()
+except Exception:
+    pass
+
 from flask_cors import CORS
 
 from routes.home import home
@@ -14,9 +22,12 @@ from routes.result_page import result_page
 from routes.rankings import rankings
 
 from routes.login import login
+from routes.signup import signup
 from routes.me import me
 from routes.logout import logout
 from routes.api_game import api_game
+from routes.admin import admin_api
+from routes.health import health, health_db
 
 
 app = Flask(__name__)
@@ -118,6 +129,12 @@ app.add_url_rule(
 # --------------------------------------------------
 
 app.add_url_rule(
+    "/api/auth/signup",
+    view_func=signup,
+    methods=["POST"]
+)
+
+app.add_url_rule(
     "/api/auth/login",
     view_func=login,
     methods=["POST"]
@@ -136,6 +153,24 @@ app.add_url_rule(
 )
 
 app.register_blueprint(api_game)
+app.register_blueprint(admin_api)
+
+
+# --------------------------------------------------
+# Health Checks (Phase 1 — safe, no secrets exposed)
+# --------------------------------------------------
+
+app.add_url_rule(
+    "/api/health",
+    view_func=health,
+    methods=["GET"]
+)
+
+app.add_url_rule(
+    "/api/health/db",
+    view_func=health_db,
+    methods=["GET"]
+)
 
 
 # --------------------------------------------------

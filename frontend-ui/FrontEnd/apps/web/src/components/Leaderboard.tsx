@@ -64,6 +64,13 @@ export function Leaderboard() {
               Retry
             </button>
           </div>
+        ) : rankings.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '30px', color: '#666', fontWeight: '800' }}>
+            NO TRADERS ON THE BOARD YET.
+            <div style={{ fontSize: '12px', fontWeight: '600', marginTop: '6px' }}>
+              Join a game and lock your first position.
+            </div>
+          </div>
         ) : (
           <div className="profile-details" style={{ gap: '10px' }}>
             {rankings.map((player, idx) => {

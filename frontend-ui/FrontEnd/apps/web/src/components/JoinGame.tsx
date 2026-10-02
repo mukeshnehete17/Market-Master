@@ -11,10 +11,11 @@ const AVATARS = ['🦊', '🐺', '🦁', '🦅', '🦈', '🏴‍☠️'];
 
 export default function JoinGame({ onJoin, illuminateId }: Props) {
   const [callsign, setCallsign] = useState(illuminateId || '');
-  const [gameCode, setGameCode] = useState('ALPHA1');
+  const [gameCode, setGameCode] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState('🦊');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
 
   useEffect(() => {
     if (illuminateId) {

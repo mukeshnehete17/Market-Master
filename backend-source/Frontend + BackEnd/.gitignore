@@ -1,0 +1,10 @@
+# Backend secrets & local artifacts — never commit these.
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.log
+.DS_Store

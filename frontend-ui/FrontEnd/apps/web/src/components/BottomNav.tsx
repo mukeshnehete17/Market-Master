@@ -1,11 +1,12 @@
-export type TabType = 'game' | 'rankings' | 'history' | 'account';
+export type TabType = 'game' | 'rankings' | 'history' | 'account' | 'admin';
 
 interface BottomNavProps {
   activeTab: TabType;
   onTabChange: (tab: TabType) => void;
+  showAdmin?: boolean;
 }
 
-export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
+export function BottomNav({ activeTab, onTabChange, showAdmin }: BottomNavProps) {
   return (
     <div className="bottom-nav-container">
       <button
@@ -40,6 +41,16 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
         <span className="nav-icon">👤</span>
         <span className="nav-label">Account</span>
       </button>
+      {showAdmin && (
+        <button
+          type="button"
+          className={`nav-btn ${activeTab === 'admin' ? 'active' : ''}`}
+          onClick={() => onTabChange('admin')}
+        >
+          <span className="nav-icon">🛡️</span>
+          <span className="nav-label">Admin</span>
+        </button>
+      )}
     </div>
   );
 }

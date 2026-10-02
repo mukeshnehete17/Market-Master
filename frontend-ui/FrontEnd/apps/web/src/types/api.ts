@@ -1,6 +1,8 @@
 export interface User {
   id: string;
   name: string;
+  email?: string;
+  avatar?: string;
   role: string;
 }
 
@@ -9,6 +11,13 @@ export interface AuthResponse {
   message?: string;
   token?: string;
   user?: User;
+}
+
+export interface SignupPayload {
+  name: string;
+  email: string;
+  password: string;
+  confirm_password: string;
 }
 
 export interface Player {
@@ -24,7 +33,7 @@ export interface Player {
 }
 
 export interface Question {
-  id: number;
+  id: string | number;
   question: string;
   options: string[];
   category?: string;
@@ -75,8 +84,8 @@ export interface GameSummary {
 
 export interface CurrentGameResponse {
   success: boolean;
-  game_state: 'not_joined' | 'question' | 'market' | 'result' | 'gameover';
-  reason?: 'bankrupt' | 'completed';
+  game_state: 'not_joined' | 'waiting' | 'paused' | 'question' | 'market' | 'result' | 'gameover';
+  reason?: 'bankrupt' | 'completed' | 'cancelled';
   player?: Player;
   game_code?: string;
   round?: RoundInfo;
@@ -97,10 +106,11 @@ export interface CurrentGameResponse {
 }
 
 export interface SubmitPositionPayload {
-  question_id: number;
+  question_id: string | number;
   option: string;
   risk_multiplier: number;
   bid_amount: number;
+  risk_percent?: number;
 }
 
 export interface RankedPlayer {
@@ -108,6 +118,9 @@ export interface RankedPlayer {
   name: string;
   avatar: string;
   capital: number;
+  profit_loss?: number;
+  score?: number;
+  rounds_played?: number;
   is_me: boolean;
   badge?: string;
 }

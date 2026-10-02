@@ -15,6 +15,7 @@ def create_token(user):
         "sub": user["id"],
         "name": user["name"],
         "role": user["role"],
+        "email": user.get("email", ""),
         "exp": datetime.now(timezone.utc) + timedelta(hours=12)
     }
 

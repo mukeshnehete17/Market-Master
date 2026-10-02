@@ -1,23 +1,40 @@
 import { apiClient } from './client';
-import type { AuthResponse, User } from '../types/api';
+import type { AuthResponse, SignupPayload, User } from '../types/api';
 
-export async function loginUser(
-  userId: string,
-  password: string
-): Promise<AuthResponse> {
-  const data = await apiClient<AuthResponse>('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ user_id: userId, password }),
-  });
-
+function persistAuth(data: AuthResponse): AuthResponse {
   if (data.token) {
     localStorage.setItem('mm_auth_token', data.token);
   }
   if (data.user) {
     localStorage.setItem('mm_user', JSON.stringify(data.user));
   }
-
   return data;
+}
+
+export async function signupUser(payload: SignupPayload): Promise<AuthResponse> {
+  const data = await apiClient<AuthResponse>('/api/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: payload.name,
+      email: payload.email,
+      password: payload.password,
+      confirm_password: payload.confirm_password,
+    }),
+  });
+
+  return persistAuth(data);
+}
+
+export async function loginUser(
+  email: string,
+  password: string
+): Promise<AuthResponse> {
+  const data = await apiClient<AuthResponse>('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+
+  return persistAuth(data);
 }
 
 export async function fetchCurrentUser(): Promise<User | null> {
