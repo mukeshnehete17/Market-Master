@@ -413,6 +413,15 @@ def active_game_for_session():
         game = get_game(gid)
         if game:
             return game
+    user = current_identity()
+    if user and user.get("id"):
+        gps = gs.gw_select("game_players", {"user_id": str(user["id"])})
+        if gps:
+            for gp in gps:
+                g = get_game(gp.get("game_id"))
+                if g and g.get("status") in ("live", "waiting", "draft"):
+                    return g
+            return get_game(gps[-1].get("game_id"))
     return None
 
 

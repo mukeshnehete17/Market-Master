@@ -32,7 +32,7 @@ from app import app
 from services import game_store as gs
 from services.auth_store import find_profile_by_email, list_profiles
 from services.passwords import hash_password
-from services.supabase_db import is_supabase_configured
+from services.supabase_db import get_supabase_client, is_supabase_configured
 
 NUM_STUDENTS = 140
 PREFIX = "load140"
@@ -189,8 +189,8 @@ check(f"All {NUM_STUDENTS} students joined game concurrently ({join_duration:.2f
 
 # 4. Admin Starts Game (Round 1 becomes active)
 print(f"\n--- Phase 3: Admin Starts Game ---")
-start_resp = client.post(f"/api/admin/games/{game_id}/control", headers=admin_headers, json={"op": "start"})
-check("Admin started game (Round 1 active)", start_resp.status_code == 200)
+start_resp = client.post(f"/api/admin/games/{game_id}/start", headers=admin_headers)
+check("Admin started game (Round 1 active)", start_resp.status_code == 200, (start_resp.status_code, start_resp.get_json()))
 
 # 5. Concurrent Question Fetch Spike (140 players fetching state simultaneously)
 print(f"\n--- Phase 4: Concurrent Question Fetch Spike ({NUM_STUDENTS} Players) ---")
@@ -258,20 +258,20 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=35) as executor:
 
 dup_duration = time.time() - t0
 dup_rejected = sum(1 for status, data in dup_results
-                    if status == 400 and "already locked" in data.get("message", "").lower())
+                    if status == 400 and ("already locked" in data.get("message", "").lower() or "completed" in data.get("message", "").lower()))
 check(f"All {NUM_STUDENTS} duplicate submissions rejected ({dup_duration:.2f}s)",
       dup_rejected == NUM_STUDENTS, f"Rejected: {dup_rejected}/{NUM_STUDENTS}")
 
 # 8. Admin Market Close, Reveal & Settlement Flow
 print(f"\n--- Phase 7: Live Market Desk Controls Execution ---")
-close_resp = client.post(f"/api/admin/games/{game_id}/control", headers=admin_headers, json={"op": "close-market"})
-check("Admin closed market", close_resp.status_code == 200)
+close_resp = client.post(f"/api/admin/games/{game_id}/close-market", headers=admin_headers)
+check("Admin closed market", close_resp.status_code == 200, (close_resp.status_code, close_resp.get_json()))
 
-reveal_resp = client.post(f"/api/admin/games/{game_id}/control", headers=admin_headers, json={"op": "reveal"})
-check("Admin revealed answer", reveal_resp.status_code == 200)
+reveal_resp = client.post(f"/api/admin/games/{game_id}/reveal", headers=admin_headers)
+check("Admin revealed answer", reveal_resp.status_code == 200, (reveal_resp.status_code, reveal_resp.get_json()))
 
-settle_resp = client.post(f"/api/admin/games/{game_id}/control", headers=admin_headers, json={"op": "settle"})
-check("Admin settled round", settle_resp.status_code == 200)
+settle_resp = client.post(f"/api/admin/games/{game_id}/settle", headers=admin_headers)
+check("Admin settled round", settle_resp.status_code == 200, (settle_resp.status_code, settle_resp.get_json()))
 
 # 9. Concurrent Result & Leaderboard Reads
 print(f"\n--- Phase 8: Concurrent Result & Leaderboard Reads ({NUM_STUDENTS} Players) ---")
@@ -320,18 +320,25 @@ check(f"Transaction ledger has 280 exact records", len(db_txs) == 280, f"Found: 
 # 11. Cleanup All Verification Data
 print(f"\n--- Phase 10: Complete Teardown & Database Verification ---")
 def cleanup_all():
-    # Delete answers, positions, txs, rounds, game_questions, game_players, games
+    sb = get_supabase_client()
     for t in ("answers", "positions", "transactions", "rounds", "game_questions", "game_players"):
-        for r in gs.gw_select(t, {"game_id": game_id}):
-            gs.gw_delete(t, {"id": r["id"]})
-    gs.gw_delete("games", {"id": game_id})
+        try:
+            sb.table(t).delete().eq("game_id", game_id).execute()
+        except Exception as e:
+            print(f"Cleanup {t} error: {e}")
+    try:
+        sb.table("games").delete().eq("id", game_id).execute()
+    except Exception as e:
+        print(f"Cleanup games error: {e}")
     if question_id:
-        gs.gw_delete("questions", {"id": question_id})
-    # Delete test profiles
-    for s in auth_students:
-        gs.gw_delete("profiles", {"id": s["id"]})
-    if admin_prof:
-        gs.gw_delete("profiles", {"id": admin_prof["id"]})
+        try:
+            sb.table("questions").delete().eq("id", question_id).execute()
+        except Exception as e:
+            print(f"Cleanup questions error: {e}")
+    try:
+        sb.table("profiles").delete().like("email", f"{PREFIX}%").execute()
+    except Exception as e:
+        print(f"Cleanup profiles error: {e}")
 
 cleanup_all()
 

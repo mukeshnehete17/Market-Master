@@ -378,7 +378,9 @@ function MarketDesk() {
               fontWeight: '800',
             }}
           >
-            ROUND {String(g.current_round_number).padStart(2, '0')} / {String(g.total_rounds).padStart(2, '0')}
+            {g.total_rounds === 0
+              ? 'NO QUESTIONS ASSIGNED'
+              : `ROUND ${String(g.current_round_number).padStart(2, '0')} / ${String(g.total_rounds).padStart(2, '0')}`}
           </div>
         </div>
 
@@ -407,7 +409,10 @@ function MarketDesk() {
           <button
             type="button"
             style={{ ...btnGhost, padding: '6px 12px', fontSize: '11px', background: 'rgba(255,255,255,0.15)', color: '#fff', borderColor: '#4b5563' }}
-            onClick={() => load(selectedGameId)}
+            onClick={async () => {
+              await load(selectedGameId);
+              setSuccess('Sync complete — fresh state loaded.');
+            }}
             disabled={actionLoading}
           >
             🔄 Sync
@@ -462,7 +467,9 @@ function MarketDesk() {
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '10px', color: '#6b7280', fontWeight: '800' }}>ROUND NUMBER</div>
                 <div style={{ fontSize: '20px', fontWeight: '900', color: '#000000' }}>
-                  {String(g.current_round_number).padStart(2, '0')} / {String(g.total_rounds).padStart(2, '0')}
+                  {g.total_rounds === 0
+                    ? '0 of 0'
+                    : `${String(g.current_round_number).padStart(2, '0')} / ${String(g.total_rounds).padStart(2, '0')}`}
                 </div>
               </div>
               <div style={{ width: '1px', height: '30px', background: '#e5e7eb' }} />
@@ -479,11 +486,18 @@ function MarketDesk() {
               {isDraftOrWaiting && (
                 <button
                   type="button"
-                  style={{ ...btnSuccess, width: '100%', padding: '12px' }}
+                  style={{
+                    ...(g.total_rounds === 0 ? btnGhost : btnSuccess),
+                    width: '100%',
+                    padding: '12px',
+                    opacity: g.total_rounds === 0 ? 0.6 : 1,
+                    cursor: g.total_rounds === 0 ? 'not-allowed' : 'pointer',
+                  }}
                   onClick={() => runControl('start', 'Start Game')}
                   disabled={actionLoading || g.total_rounds === 0}
+                  title={g.total_rounds === 0 ? 'Assign at least one question to start.' : 'Start Round 1'}
                 >
-                  ▶ START GAME (ROUND 1)
+                  {g.total_rounds === 0 ? '⚠️ ASSIGN AT LEAST 1 QUESTION TO START' : '▶ START GAME (ROUND 1)'}
                 </button>
               )}
 
@@ -797,7 +811,7 @@ function MarketDesk() {
                 style={{ ...(subTab === 'questions' ? btnPrimary : btnGhost), padding: '6px 14px', fontSize: '11px', borderRadius: '999px' }}
                 onClick={() => setSubTab('questions')}
               >
-                ❓ Question Bank ({g.questions?.length || 0})
+                ❓ Assigned Questions ({g.questions?.length || 0})
               </button>
               <button
                 type="button"

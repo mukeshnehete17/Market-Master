@@ -603,6 +603,7 @@ def admin_create_game(admin_id, data, creator_id):
     if qids:
         err = set_game_questions(game["id"], qids)
         if err:
+            gs.gw_delete("games", {"id": game["id"]})
             return None, err
     log_action(admin_id, "game.create", "game", game["id"], {"pin": pin, "name": game.get("name")})
     return get_game_detail(game["id"]), None
@@ -621,7 +622,11 @@ def set_game_questions(game_id, question_ids):
     all_q_rows = {str(q.get("id")): q for q in gs.gw_select("questions")}
     for qid in ordered:
         if qid not in all_q_rows:
-            return "Question not found: {}".format(qid)
+            direct_q = gs.get_question_row(qid) or gs.gw_select("questions", {"id": qid}, limit=1)
+            if direct_q:
+                all_q_rows[qid] = direct_q[0] if isinstance(direct_q, list) else direct_q
+            else:
+                return "Question not found: {}".format(qid)
 
     for r in gs.gw_select("game_questions", {"game_id": str(game_id)}):
         gs.gw_delete("game_questions", {"id": str(r.get("id"))})
