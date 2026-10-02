@@ -1,5 +1,5 @@
 import os
-from flask import Flask
+from flask import Flask, jsonify
 
 try:
     # Load backend .env for local development (optional, env vars still work).
@@ -10,6 +10,8 @@ except Exception:
     pass
 
 from flask_cors import CORS
+
+from services.db_errors import DatabaseUnavailable
 
 from routes.home import home
 from routes.submit_answer import submit_answer
@@ -154,6 +156,16 @@ app.add_url_rule(
 
 app.register_blueprint(api_game)
 app.register_blueprint(admin_api)
+
+
+@app.errorhandler(DatabaseUnavailable)
+def _db_unavailable(_exc):
+    # Controlled 503: real Supabase failure while configured. No internals
+    # or secrets are exposed; clients should retry shortly.
+    return jsonify({
+        "success": False,
+        "message": "Database temporarily unavailable. Please try again.",
+    }), 503
 
 
 # --------------------------------------------------

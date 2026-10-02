@@ -7,23 +7,27 @@ export function Leaderboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadLeaderboard = async () => {
+  const loadLeaderboard = async (signal?: AbortSignal) => {
     setIsLoading(true);
     setError('');
     try {
-      const data = await fetchLeaderboard();
+      const data = await fetchLeaderboard(signal);
+      if (signal?.aborted) return;
       if (data.success && data.rankings) {
         setRankings(data.rankings);
       }
     } catch (err: any) {
+      if (signal?.aborted || err?.name === 'AbortError') return;
       setError(err?.message || 'Failed to load rankings.');
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadLeaderboard();
+    const ctrl = new AbortController();
+    loadLeaderboard(ctrl.signal);
+    return () => ctrl.abort();
   }, []);
 
   return (
@@ -50,7 +54,7 @@ export function Leaderboard() {
             <div className="login-error" style={{ marginBottom: '16px' }}>{error}</div>
             <button
               type="button"
-              onClick={loadLeaderboard}
+              onClick={() => { void loadLeaderboard(); }}
               style={{
                 padding: '8px 16px',
                 borderRadius: '8px',
@@ -161,7 +165,7 @@ export function Leaderboard() {
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <button
             type="button"
-            onClick={loadLeaderboard}
+            onClick={() => { void loadLeaderboard(); }}
             style={{
               padding: '10px 20px',
               borderRadius: '12px',

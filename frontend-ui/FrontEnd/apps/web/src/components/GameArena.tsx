@@ -92,11 +92,14 @@ export function GameArena({ callsign, onExit }: Props) {
     };
   }, []);
 
-  // Fetch initial/current game state from backend
-  const syncGameState = useCallback(async () => {
+  // Fetch initial/current game state from backend.
+  // Accepts an AbortSignal so unmounts cancel in-flight requests and stale
+  // responses can never overwrite newer state.
+  const syncGameState = useCallback(async (signal?: AbortSignal) => {
     setErrorMsg('');
     try {
-      const data = await fetchCurrentGameState();
+      const data = await fetchCurrentGameState(signal);
+      if (signal?.aborted) return;
       if (!data.success) {
         setErrorMsg(data.message || 'Failed to retrieve game state.');
         return;
@@ -154,12 +157,15 @@ export function GameArena({ callsign, onExit }: Props) {
         setArenaState('question');
       }
     } catch (err: any) {
+      if (signal?.aborted || err?.name === 'AbortError') return;
       setErrorMsg(err?.message || 'Network error syncing with game server.');
     }
   }, []);
 
   useEffect(() => {
-    syncGameState();
+    const ctrl = new AbortController();
+    syncGameState(ctrl.signal);
+    return () => ctrl.abort();
   }, [syncGameState]);
 
   // Handle countdown timer for question and market locked states
@@ -386,7 +392,7 @@ export function GameArena({ callsign, onExit }: Props) {
           <span>⚠️ {errorMsg}</span>
           <button
             type="button"
-            onClick={syncGameState}
+            onClick={() => { void syncGameState(); }}
             style={{
               background: '#e11d48',
               color: '#fff',
@@ -434,7 +440,7 @@ export function GameArena({ callsign, onExit }: Props) {
           </p>
           <button
             type="button"
-            onClick={syncGameState}
+            onClick={() => { void syncGameState(); }}
             style={{
               marginTop: '14px',
               padding: '10px 20px',
@@ -496,6 +502,8 @@ export function GameArena({ callsign, onExit }: Props) {
                 <button
                   key={idx}
                   type="button"
+                  aria-pressed={isSelected}
+                  aria-label={`Option ${letter}: ${opt}`}
                   className={`arena-option-btn ${isSelected ? 'selected' : ''}`}
                   onClick={() => {
                     setSelectedOptionIndex(idx);
@@ -511,27 +519,93 @@ export function GameArena({ callsign, onExit }: Props) {
 
           {/* Bid Amount + Risk Selector */}
           <div className="arena-risk-section">
-            {/* Bid Amount Input */}
+            {/* Bid Amount Input with Mobile Quick Chips & Steppers */}
             <div className="bid-row">
-              <label htmlFor="bid-input" className="risk-title">
-                YOUR BID AMOUNT
-              </label>
-              <div className="bid-input-wrap">
-                <span className="bid-currency">₹</span>
-                <input
-                  id="bid-input"
-                  type="number"
-                  min={10}
-                  max={capital}
-                  step={10}
-                  value={bidAmount}
-                  onChange={(e) =>
-                    setBidAmount(
-                      Math.min(capital, Math.max(10, Number(e.target.value)))
-                    )
-                  }
-                  className="bid-amount-input"
-                />
+              <div className="bid-row-header">
+                <label htmlFor="bid-input" className="risk-title">
+                  BID CAPITAL
+                </label>
+                <span className="bid-available-hint">
+                  Available: <strong>₹{capital.toLocaleString()}</strong>
+                </span>
+              </div>
+
+              <div className="bid-controls-flex">
+                <button
+                  type="button"
+                  className="bid-step-btn"
+                  onClick={() => setBidAmount((prev) => Math.max(10, prev - 50))}
+                  aria-label="Decrease bid by 50"
+                >
+                  −50
+                </button>
+
+                <div className="bid-input-wrap">
+                  <span className="bid-currency">₹</span>
+                  <input
+                    id="bid-input"
+                    type="number"
+                    min={10}
+                    max={capital}
+                    step={10}
+                    value={bidAmount}
+                    onChange={(e) =>
+                      setBidAmount(
+                        Math.min(capital, Math.max(10, Number(e.target.value) || 10))
+                      )
+                    }
+                    className="bid-amount-input"
+                    inputMode="numeric"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="bid-step-btn"
+                  onClick={() => setBidAmount((prev) => Math.min(capital, prev + 50))}
+                  aria-label="Increase bid by 50"
+                >
+                  +50
+                </button>
+              </div>
+
+              {/* One-Touch Quick Percentage Chips */}
+              <div className="bid-quick-chips">
+                <button
+                  type="button"
+                  className={`bid-chip ${effectiveBid === 10 ? 'active' : ''}`}
+                  onClick={() => setBidAmount(10)}
+                >
+                  MIN (₹10)
+                </button>
+                <button
+                  type="button"
+                  className={`bid-chip ${effectiveBid === Math.max(10, Math.round(capital * 0.25)) ? 'active' : ''}`}
+                  onClick={() => setBidAmount(Math.max(10, Math.round(capital * 0.25)))}
+                >
+                  25%
+                </button>
+                <button
+                  type="button"
+                  className={`bid-chip ${effectiveBid === Math.max(10, Math.round(capital * 0.5)) ? 'active' : ''}`}
+                  onClick={() => setBidAmount(Math.max(10, Math.round(capital * 0.5)))}
+                >
+                  50%
+                </button>
+                <button
+                  type="button"
+                  className={`bid-chip ${effectiveBid === Math.max(10, Math.round(capital * 0.75)) ? 'active' : ''}`}
+                  onClick={() => setBidAmount(Math.max(10, Math.round(capital * 0.75)))}
+                >
+                  75%
+                </button>
+                <button
+                  type="button"
+                  className={`bid-chip ${effectiveBid === capital ? 'active' : ''}`}
+                  onClick={() => setBidAmount(capital)}
+                >
+                  MAX (₹{capital.toLocaleString()})
+                </button>
               </div>
             </div>
 
@@ -539,8 +613,8 @@ export function GameArena({ callsign, onExit }: Props) {
               <span className="risk-title">SELECT RISK MULTIPLIER</span>
               <span className="risk-payoff-preview">
                 {selectedRisk === 'none'
-                  ? 'Safe Gain: +₹100 | Bid at Risk: ₹0'
-                  : `Win: +₹${potentialWin.toLocaleString()} | Lose: -₹${potentialLoss.toLocaleString()}`}
+                  ? 'Safe: +₹100 | Risk: ₹0'
+                  : `Win: +₹${potentialWin.toLocaleString()} | Loss: -₹${potentialLoss.toLocaleString()}`}
               </span>
             </div>
 
@@ -578,7 +652,7 @@ export function GameArena({ callsign, onExit }: Props) {
                   ? 'LOCKING POSITION...'
                   : selectedOption === null
                     ? `Choose an option (${timeLeft}s remaining)`
-                    : `Confirm — Bid ₹${effectiveBid} · ${RISK_TIERS[selectedRisk].label}`
+                    : `Confirm — Bid ₹${effectiveBid.toLocaleString()} · ${RISK_TIERS[selectedRisk].label}`
               }
               onClick={handleLockIn}
               disabled={isSubmitting || selectedOption === null}
@@ -586,6 +660,7 @@ export function GameArena({ callsign, onExit }: Props) {
           </div>
         </div>
       )}
+
 
       {/* Position Locked / Market Waiting State */}
       {arenaState === 'locked' && pendingPosition && (

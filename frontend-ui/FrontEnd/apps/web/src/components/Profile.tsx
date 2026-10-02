@@ -14,21 +14,25 @@ export function Profile({ illuminateId, onLogout }: ProfileProps) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    async function loadProfile() {
+    async function loadProfile(signal?: AbortSignal) {
       setIsLoading(true);
       setError('');
       try {
-        const data = await fetchPlayerProfile();
+        const data = await fetchPlayerProfile(signal);
+        if (signal?.aborted) return;
         if (data.success && data.player) {
           setProfile(data.player);
         }
       } catch (err: any) {
+        if (signal?.aborted || err?.name === 'AbortError') return;
         setError(err?.message || 'Failed to load profile.');
       } finally {
-        setIsLoading(false);
+        if (!signal?.aborted) setIsLoading(false);
       }
     }
-    loadProfile();
+    const ctrl = new AbortController();
+    loadProfile(ctrl.signal);
+    return () => ctrl.abort();
   }, []);
 
   const handleSignOut = async () => {

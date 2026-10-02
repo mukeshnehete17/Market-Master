@@ -129,7 +129,7 @@ export default function JoinGame({ onJoin, illuminateId }: Props) {
               name="gameCode"
               value={gameCode}
               onChange={(e) => setGameCode(e.target.value)}
-              placeholder="ENTER GAME PIN (E.G. ALPHA1)"
+              placeholder="ENTER GAME PIN"
               autoComplete="off"
               autoCapitalize="characters"
               spellCheck={false}

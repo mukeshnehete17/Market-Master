@@ -1,15 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import JoinGame from './components/JoinGame';
 import { GameArena } from './components/GameArena';
 import { GradientBlurBg } from './components/GradientBlurBg';
-import { Profile } from './components/Profile';
 import { Login } from './components/Login';
-import { Leaderboard } from './components/Leaderboard';
-import { History } from './components/History';
 import { BottomNav, type TabType } from './components/BottomNav';
-import { AdminPanel } from './components/admin/AdminPanel';
 import { fetchCurrentUser, logoutUser } from './api/auth';
 import type { User } from './types/api';
+
+// Code-split secondary views to keep initial bundle ultra-light on mobile
+const Leaderboard = lazy(() =>
+  import('./components/Leaderboard').then((m) => ({ default: m.Leaderboard }))
+);
+const History = lazy(() =>
+  import('./components/History').then((m) => ({ default: m.History }))
+);
+const Profile = lazy(() =>
+  import('./components/Profile').then((m) => ({ default: m.Profile }))
+);
+const AdminPanel = lazy(() =>
+  import('./components/admin/AdminPanel').then((m) => ({ default: m.AdminPanel }))
+);
+
+function TabLoader({ label = 'Loading...' }: { label?: string }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '60px 20px',
+        color: '#000',
+        fontWeight: 800,
+        fontSize: '14px',
+        letterSpacing: '0.05em',
+      }}
+    >
+      <div style={{ fontSize: '28px', marginBottom: '10px' }}>⚡</div>
+      <span>{label}</span>
+    </div>
+  );
+}
+
 
 interface PlayerSession {
   callsign: string;
@@ -90,32 +122,41 @@ export default function App() {
 
               {activeTab === 'rankings' && (
                 <section className="join-section" aria-label="Leaderboard Rankings">
-                  <Leaderboard />
+                  <Suspense fallback={<TabLoader label="Loading Leaderboard..." />}>
+                    <Leaderboard />
+                  </Suspense>
                 </section>
               )}
 
               {activeTab === 'history' && (
                 <section className="join-section" aria-label="Trade History">
-                  <History />
+                  <Suspense fallback={<TabLoader label="Loading Trade History..." />}>
+                    <History />
+                  </Suspense>
                 </section>
               )}
 
               {activeTab === 'account' && (
                 <section className="join-section" aria-label="Trader Profile">
-                  <Profile
-                    illuminateId={currentUser.id}
-                    onLogout={handleLogout}
-                  />
+                  <Suspense fallback={<TabLoader label="Loading Profile..." />}>
+                    <Profile
+                      illuminateId={currentUser.id}
+                      onLogout={handleLogout}
+                    />
+                  </Suspense>
                 </section>
               )}
 
               {activeTab === 'admin' && isAdmin && (
                 <section className="join-section" aria-label="Admin Console">
-                  <AdminPanel />
+                  <Suspense fallback={<TabLoader label="Loading Admin Console..." />}>
+                    <AdminPanel />
+                  </Suspense>
                 </section>
               )}
 
               <BottomNav activeTab={activeTab} onTabChange={setActiveTab} showAdmin={isAdmin} />
+
             </>
           )}
         </main>

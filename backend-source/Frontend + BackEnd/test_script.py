@@ -1,5 +1,32 @@
+import sys
 import time
-from app import app
+
+sys.path.insert(0, "backend-source/Frontend + BackEnd")
+
+from services.supabase_db import is_supabase_configured  # noqa: E402
+
+if is_supabase_configured():
+    print("REFUSED: test_script.py is local-only and would pollute the real database.")
+    sys.exit(2)
+
+from services.game_store import reset_all, gw_insert  # noqa: E402
+
+# Local fixtures (empty-start: no demo data committed anymore).
+reset_all()
+gw_insert("questions", {
+    "id": "test-q1", "question_text": "Python question?",
+    "option_a": "Python", "option_b": "Java", "option_c": "Ruby", "option_d": "C++",
+    "correct_option": "Python", "explanation": "Test fixture.",
+    "category": "Test", "duration_seconds": 15, "is_active": True,
+})
+gw_insert("questions", {
+    "id": "test-q2", "question_text": "Protocol question?",
+    "option_a": "HTTP", "option_b": "HTTPS", "option_c": "FTP", "option_d": "SMTP",
+    "correct_option": "HTTPS", "explanation": "Test fixture.",
+    "category": "Test", "duration_seconds": 15, "is_active": True,
+})
+
+from app import app  # noqa: E402
 client = app.test_client()
 
 with client.session_transaction() as sess:

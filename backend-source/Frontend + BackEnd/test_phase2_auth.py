@@ -12,6 +12,12 @@ import sys
 
 sys.path.insert(0, "backend-source/Frontend + BackEnd")
 
+from services.supabase_db import is_supabase_configured  # noqa: E402
+
+if is_supabase_configured():
+    print("REFUSED: this suite is local-only and would pollute the real database.")
+    sys.exit(2)
+
 from app import app  # noqa: E402
 from services.auth_store import reset_memory_store  # noqa: E402
 

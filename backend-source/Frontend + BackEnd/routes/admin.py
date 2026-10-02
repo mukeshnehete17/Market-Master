@@ -61,6 +61,13 @@ def overview():
     return jsonify({"success": True, "metrics": svc.dashboard_metrics()}), 200
 
 
+@admin_api.route('/deck', methods=['GET'])
+@require_admin
+def control_deck():
+    game_id = request.args.get("game_id", None)
+    return jsonify({"success": True, "deck": svc.control_deck_state(game_id)}), 200
+
+
 # ---------------- students ----------------
 
 @admin_api.route('/students', methods=['GET'])

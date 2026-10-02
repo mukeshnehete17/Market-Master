@@ -98,6 +98,223 @@ def dashboard_metrics():
     }
 
 
+def control_deck_state(game_id=None):
+    """Full operational state for the live Admin Control Deck."""
+    from services import game_engine as engine
+
+    games = gs.gw_select("games")
+    games.sort(key=lambda g: str(g.get("created_at", "")), reverse=True)
+
+    target_game = None
+    if game_id:
+        rows = [g for g in games if str(g.get("id")) == str(game_id)]
+        if rows:
+            target_game = rows[0]
+
+    if not target_game:
+        # Prefer live / active games, then draft/waiting, then most recent
+        live = [g for g in games if g.get("status") in ("live", "paused", "market_closed")]
+        if live:
+            target_game = live[0]
+        else:
+            waiting = [g for g in games if g.get("status") in ("waiting", "draft")]
+            if waiting:
+                target_game = waiting[0]
+            elif games:
+                target_game = games[0]
+
+    profiles = list_profiles()
+    students = [p for p in profiles if p.get("role") == "participant"]
+    all_questions = gs.gw_select("questions")
+
+    games_summary = [
+        {
+            "id": str(g["id"]),
+            "name": str(g.get("name", "")),
+            "game_pin": str(g.get("game_pin", "")),
+            "status": str(g.get("status", "draft")),
+        }
+        for g in games
+    ]
+
+    if not target_game:
+        return {
+            "has_game": False,
+            "total_students": len(students),
+            "total_questions": len(all_questions),
+            "total_games": len(games),
+            "recent_actions": recent_actions(25),
+            "games_list": games_summary,
+        }
+
+    gid = str(target_game["id"])
+    gqs = gs.gw_select("game_questions", {"game_id": gid})
+    gqs.sort(key=lambda r: int(r.get("round_number", 0)))
+    total_rounds = len(gqs)
+
+    rounds = gs.gw_select("rounds", {"game_id": gid})
+    rounds.sort(key=lambda r: int(r.get("round_number", 0)))
+
+    current_round = None
+    active_rounds = [r for r in rounds if r.get("status") in ("question_open", "market_open")]
+    if active_rounds:
+        active_rounds.sort(key=lambda r: int(r.get("round_number", 0)), reverse=True)
+        current_round = active_rounds[0]
+    elif rounds:
+        current_round = rounds[-1]
+
+    current_question = None
+    if current_round:
+        qrow = gs.get_question_row(current_round.get("question_id"))
+        if qrow:
+            current_question = {
+                "id": str(qrow.get("id")),
+                "question_text": qrow.get("question_text", ""),
+                "option_a": qrow.get("option_a", ""),
+                "option_b": qrow.get("option_b", ""),
+                "option_c": qrow.get("option_c", ""),
+                "option_d": qrow.get("option_d", ""),
+                "correct_option": qrow.get("correct_option", ""),
+                "explanation": qrow.get("explanation", ""),
+                "category": qrow.get("category", "Market Intelligence"),
+                "duration_seconds": int(qrow.get("duration_seconds", 15) or 15),
+                "round_number": int(current_round.get("round_number", 1)),
+                "round_status": str(current_round.get("status", "question_open")),
+            }
+
+    players_rows = gs.gw_select("game_players", {"game_id": gid})
+    players_list = []
+    current_round_answers = {}
+    current_round_positions = {}
+
+    if current_round:
+        rid = str(current_round["id"])
+        ans_rows = gs.gw_select("answers", {"game_id": gid, "round_id": rid})
+        for a in ans_rows:
+            current_round_answers[str(a.get("user_id"))] = a
+        pos_rows = gs.gw_select("positions", {"game_id": gid, "round_id": rid})
+        for p in pos_rows:
+            current_round_positions[str(p.get("user_id"))] = p
+
+    total_capital_at_risk = 0.0
+    sentiment_counts = {"A": 0, "B": 0, "C": 0, "D": 0}
+    sentiment_capital = {"A": 0.0, "B": 0.0, "C": 0.0, "D": 0.0}
+
+    for p in players_rows:
+        uid = str(p.get("user_id"))
+        prof = find_profile_by_id(uid) or {}
+        ans = current_round_answers.get(uid)
+        pos = current_round_positions.get(uid)
+
+        sub_info = None
+        if ans:
+            opt = str(ans.get("selected_option", "")).strip().upper()
+            if opt in sentiment_counts:
+                sentiment_counts[opt] += 1
+            bid = float(pos.get("bid_amount", 0) or 0) if pos else 0.0
+            if opt in sentiment_capital:
+                sentiment_capital[opt] += bid
+            total_capital_at_risk += bid
+
+            sub_info = {
+                "selected_option": ans.get("selected_option"),
+                "risk_percent": float(pos.get("risk_percent", 0) or 0) if pos else 0.0,
+                "bid_amount": bid,
+                "potential_profit": float(pos.get("potential_profit", 0) or 0) if pos else 0.0,
+                "potential_loss": float(pos.get("potential_loss", 0) or 0) if pos else 0.0,
+                "is_correct": ans.get("is_correct"),
+                "submitted_at": ans.get("answered_at") or ans.get("created_at"),
+                "status": "settled" if current_round and current_round.get("status") == "settled" else (
+                    "locked" if current_round and current_round.get("status") in ("market_closed", "result") else "submitted"
+                ),
+            }
+
+        players_list.append({
+            "user_id": uid,
+            "name": prof.get("name", "Student"),
+            "email": prof.get("email", ""),
+            "avatar": prof.get("avatar", "🦊"),
+            "current_capital": float(p.get("current_capital", 0) or 0),
+            "total_profit_loss": float(p.get("total_profit_loss", 0) or 0),
+            "score": int(p.get("score", 0) or 0),
+            "status": str(p.get("status", "active")),
+            "submission": sub_info,
+        })
+
+    submitted_count = len(current_round_answers)
+    total_joined = len(players_rows)
+    waiting_count = max(0, total_joined - submitted_count)
+
+    sentiment_percentages = {}
+    for k, v in sentiment_counts.items():
+        sentiment_percentages[k] = round((v / submitted_count * 100), 1) if submitted_count > 0 else 0.0
+
+    trades = game_trades(gid) or []
+    leaderboard = engine.game_leaderboard(target_game)
+
+    biggest_gainer = None
+    biggest_drawdown = None
+    high_conviction = []
+
+    if trades:
+        settled_trades = [t for t in trades if t.get("profit_loss") is not None]
+        if settled_trades:
+            gainers = sorted(settled_trades, key=lambda t: float(t.get("profit_loss", 0)), reverse=True)
+            if gainers and float(gainers[0].get("profit_loss", 0)) > 0:
+                biggest_gainer = gainers[0]
+            losers = sorted(settled_trades, key=lambda t: float(t.get("profit_loss", 0)))
+            if losers and float(losers[0].get("profit_loss", 0)) < 0:
+                biggest_drawdown = losers[0]
+        conviction_sorted = sorted(trades, key=lambda t: (float(t.get("risk_percent", 0)), float(t.get("bid_amount", 0))), reverse=True)
+        high_conviction = conviction_sorted[:5]
+
+    return {
+        "has_game": True,
+        "game": {
+            "id": gid,
+            "name": str(target_game.get("name", "")),
+            "game_pin": str(target_game.get("game_pin", "")),
+            "status": str(target_game.get("status", "draft")),
+            "starting_capital": float(target_game.get("starting_capital", 10000) or 10000),
+            "min_risk": float(target_game.get("min_risk", 10) or 10),
+            "max_risk": float(target_game.get("max_risk", 75) or 75),
+            "default_question_duration": int(target_game.get("default_question_duration", 15) or 15),
+            "total_rounds": total_rounds,
+            "current_round_number": int(current_round.get("round_number", 1)) if current_round else 1,
+            "round_status": str(current_round.get("status", "pending")) if current_round else "pending",
+            "round_id": str(current_round.get("id")) if current_round else None,
+            "round_started_at": current_round.get("started_at") if current_round else None,
+            "questions": gqs,
+        },
+        "current_question": current_question,
+        "participants": {
+            "total_joined": total_joined,
+            "submitted_count": submitted_count,
+            "waiting_count": waiting_count,
+            "list": players_list,
+        },
+        "sentiment": {
+            "counts": sentiment_counts,
+            "percentages": sentiment_percentages,
+            "capital_by_option": sentiment_capital,
+            "total_capital_at_risk": total_capital_at_risk,
+            "total_submissions": submitted_count,
+        },
+        "movers": {
+            "biggest_gainer": biggest_gainer,
+            "biggest_drawdown": biggest_drawdown,
+            "high_conviction": high_conviction,
+        },
+        "leaderboard": leaderboard,
+        "recent_trades": trades[-30:] if trades else [],
+        "recent_actions": recent_actions(25),
+        "games_list": games_summary,
+        "total_students": len(students),
+        "total_questions": len(all_questions),
+        "total_games": len(games),
+    }
+
+
 # ---------------- students ----------------
 
 def _student_aggregates(user_id):

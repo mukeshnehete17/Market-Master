@@ -45,7 +45,7 @@ export function buildApiUrl(endpoint: string): string {
 
 export async function apiClient<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const token = localStorage.getItem('mm_auth_token');
 

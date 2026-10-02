@@ -17,6 +17,7 @@ import time
 import uuid
 
 from services.supabase_db import get_supabase_client, is_supabase_configured
+from services.db_errors import DatabaseUnavailable
 
 _mem = {}
 _seeded = False
@@ -154,6 +155,12 @@ def _delete(table, filters):
 # Generic gateway: db-first, memory fallback for reads; writes go to
 # whichever backend is active.
 # ------------------------------------------------------------------
+def _fail(action, table, exc):
+    """Loud failure when Supabase is configured (never silent fallback)."""
+    raise DatabaseUnavailable(
+        "Supabase %s on '%s' failed: %s" % (action, table, exc))
+
+
 def gw_select(table, filters=None, limit=None, order=None):
     if _use_db():
         try:
@@ -167,8 +174,10 @@ def gw_select(table, filters=None, limit=None, order=None):
                 q = q.limit(limit)
             resp = q.execute()
             return list(getattr(resp, "data", None) or [])
-        except Exception:
-            pass
+        except DatabaseUnavailable:
+            raise
+        except Exception as e:
+            _fail("select", table, e)
     return _select(table, filters, limit, order)
 
 
@@ -180,8 +189,10 @@ def gw_insert(table, payload):
             if data:
                 return dict(data[0])
             return dict(payload)
-        except Exception:
-            pass
+        except DatabaseUnavailable:
+            raise
+        except Exception as e:
+            _fail("insert", table, e)
     return _insert(table, payload)
 
 
@@ -193,8 +204,10 @@ def gw_update(table, filters, patch):
                 q = q.eq(k, v)
             q.execute()
             return 1
-        except Exception:
-            pass
+        except DatabaseUnavailable:
+            raise
+        except Exception as e:
+            _fail("update", table, e)
     return _update(table, filters, patch)
 
 
@@ -206,8 +219,10 @@ def gw_delete(table, filters):
                 q = q.eq(k, v)
             q.execute()
             return 1
-        except Exception:
-            pass
+        except DatabaseUnavailable:
+            raise
+        except Exception as e:
+            _fail("delete", table, e)
     return _delete(table, filters)
 
 
@@ -238,9 +253,12 @@ def list_active_questions():
             resp = (_db().table("questions").select("*")
                     .eq("is_active", True).execute())
             return list(getattr(resp, "data", None) or [])
-        except Exception:
-            pass
+        except DatabaseUnavailable:
+            raise
+        except Exception as e:
+            _fail("select", "questions", e)
     return [r for r in _rows("questions") if r.get("is_active")]
+
 
 
 def get_question_row(qid):

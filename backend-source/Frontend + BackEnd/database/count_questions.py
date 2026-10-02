@@ -1,5 +1,5 @@
-from database.demo_questions import questions
+from services import game_store as gs
 
 
 def count_questions():
-    return len(questions)
+    return len(gs.list_active_questions())

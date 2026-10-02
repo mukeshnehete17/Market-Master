@@ -47,8 +47,88 @@ export interface AdminMetrics {
   recent_actions: any[];
 }
 
+export interface ControlDeckData {
+  has_game: boolean;
+  game?: {
+    id: string;
+    name: string;
+    game_pin: string;
+    status: string;
+    starting_capital: number;
+    min_risk: number;
+    max_risk: number;
+    default_question_duration: number;
+    total_rounds: number;
+    current_round_number: number;
+    round_status: string;
+    round_id: string | null;
+    round_started_at: string | null;
+    questions: any[];
+  };
+  current_question?: {
+    id: string;
+    question_text: string;
+    option_a: string;
+    option_b: string;
+    option_c: string;
+    option_d: string;
+    correct_option: string;
+    explanation: string;
+    category: string;
+    duration_seconds: number;
+    round_number: number;
+    round_status: string;
+  } | null;
+  participants?: {
+    total_joined: number;
+    submitted_count: number;
+    waiting_count: number;
+    list: Array<{
+      user_id: string;
+      name: string;
+      email: string;
+      avatar: string;
+      current_capital: number;
+      total_profit_loss: number;
+      score: number;
+      status: string;
+      submission?: {
+        selected_option: string;
+        risk_percent: number;
+        bid_amount: number;
+        potential_profit: number;
+        potential_loss: number;
+        is_correct: boolean | null;
+        submitted_at: string;
+        status: string;
+      } | null;
+    }>;
+  };
+  sentiment?: {
+    counts: { A: number; B: number; C: number; D: number };
+    percentages: { A: number; B: number; C: number; D: number };
+    capital_by_option: { A: number; B: number; C: number; D: number };
+    total_capital_at_risk: number;
+    total_submissions: number;
+  };
+  movers?: {
+    biggest_gainer: any | null;
+    biggest_drawdown: any | null;
+    high_conviction: any[];
+  };
+  leaderboard?: any[];
+  recent_trades?: any[];
+  recent_actions: any[];
+  games_list: Array<{ id: string; name: string; game_pin: string; status: string }>;
+  total_students: number;
+  total_questions: number;
+  total_games: number;
+}
+
 export const adminApi = {
   overview: () => get<{ success: boolean; metrics: AdminMetrics }>('/overview'),
+  controlDeck: (gameId?: string) =>
+    get<{ success: boolean; deck: ControlDeckData }>(`/deck${gameId ? `?game_id=${encodeURIComponent(gameId)}` : ''}`),
   students: (params = '') =>
     get<{ success: boolean; students: any[] }>(`/students${params}`),
   student: (id: string) => get<{ success: boolean; student: any }>(`/students/${id}`),

@@ -14,14 +14,21 @@ import uuid
 
 from services.passwords import hash_password
 from services.supabase_db import get_supabase_client, is_supabase_configured
+from services.db_errors import DatabaseUnavailable
+
+
+def _fail(action, exc):
+    raise DatabaseUnavailable("Supabase %s on 'profiles' failed: %s" % (action, exc))
 
 # In-memory fallback for local dev / tests (no Supabase credentials).
 _mem_by_email = {}
 _mem_by_id = {}
 _mem_seeded = False
 
-# Administrator profile mirroring migration seed (required for Admin Panel access).
+# Administrator profile mirroring the migration seed (required for Admin Panel access).
 # Password: ECELLADMIN
+# NOTE: local fallback intentionally seeds admin only. Production starts
+# empty; participants sign up and all content is admin-created.
 _FALLBACK_SEEDS = (
     {
         "id": "a0000000-0000-0000-0000-000000000001",
@@ -100,8 +107,10 @@ def find_profile_by_email(email):
             if rows:
                 return _to_row(rows[0])
             return None
-        except Exception:
-            return None
+        except DatabaseUnavailable:
+            raise
+        except Exception as e:
+            _fail("select", e)
     _seed_memory_store()
     return _mem_by_email.get(email)
 
@@ -119,8 +128,10 @@ def find_profile_by_id(user_id):
             if rows:
                 return _to_row(rows[0])
             return None
-        except Exception:
-            return None
+        except DatabaseUnavailable:
+            raise
+        except Exception as e:
+            _fail("select", e)
     _seed_memory_store()
     return _mem_by_id.get(user_id)
 
@@ -146,8 +157,10 @@ def create_profile_row(name, email, password_hash, role="participant", avatar="ð
             if rows:
                 return _to_row(rows[0])
             return _to_row(payload)
-        except Exception:
-            return None
+        except DatabaseUnavailable:
+            raise
+        except Exception as e:
+            _fail("insert", e)
     _seed_memory_store()
     if email in _mem_by_email:
         return None
@@ -173,12 +186,15 @@ def list_profiles():
             resp = client.table("profiles").select(
                 "id,name,email,role,avatar,status,created_at,updated_at").execute()
             return list(getattr(resp, "data", None) or [])
-        except Exception:
-            pass
+        except DatabaseUnavailable:
+            raise
+        except Exception as e:
+            _fail("select", e)
     _seed_memory_store()
     return [{"id": r["id"], "name": r["name"], "email": r["email"],
              "role": r["role"], "avatar": r["avatar"], "status": r["status"]}
             for r in _mem_by_email.values()]
+
 
 
 def update_profile_row(user_id, patch):
@@ -197,8 +213,10 @@ def update_profile_row(user_id, patch):
             (client.table("profiles").update(dict(allowed))
              .eq("id", str(user_id)).execute())
             return find_profile_by_id(user_id)
-        except Exception:
-            return None
+        except DatabaseUnavailable:
+            raise
+        except Exception as e:
+            _fail("update", e)
     _seed_memory_store()
     row = _mem_by_id.get(str(user_id))
     if not row:

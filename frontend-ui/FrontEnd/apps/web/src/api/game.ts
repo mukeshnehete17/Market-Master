@@ -22,9 +22,10 @@ export async function joinGame(
   });
 }
 
-export async function fetchCurrentGameState(): Promise<CurrentGameResponse> {
+export async function fetchCurrentGameState(signal?: AbortSignal): Promise<CurrentGameResponse> {
   return apiClient<CurrentGameResponse>('/api/game/current', {
     method: 'GET',
+    signal,
   });
 }
 

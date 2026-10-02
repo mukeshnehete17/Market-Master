@@ -7,23 +7,27 @@ export function History() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadHistory = async () => {
+  const loadHistory = async (signal?: AbortSignal) => {
     setIsLoading(true);
     setError('');
     try {
-      const data = await fetchTradeHistory();
+      const data = await fetchTradeHistory(signal);
+      if (signal?.aborted) return;
       if (data.success && data.history) {
         setHistory(data.history);
       }
     } catch (err: any) {
+      if (signal?.aborted || err?.name === 'AbortError') return;
       setError(err?.message || 'Failed to load trade history.');
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadHistory();
+    const ctrl = new AbortController();
+    loadHistory(ctrl.signal);
+    return () => ctrl.abort();
   }, []);
 
   return (
@@ -50,7 +54,7 @@ export function History() {
             <div className="login-error" style={{ marginBottom: '16px' }}>{error}</div>
             <button
               type="button"
-              onClick={loadHistory}
+              onClick={() => { void loadHistory(); }}
               style={{
                 padding: '8px 16px',
                 borderRadius: '8px',

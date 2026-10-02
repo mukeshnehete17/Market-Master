@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useReducedMotion } from '../hooks/use-reduced-motion';
 
 type Props = {
   trigger: boolean;
@@ -29,9 +30,10 @@ const COLORS = [
 
 export function Confetti({ trigger }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    if (!trigger) return;
+    if (!trigger || reduceMotion) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -109,7 +111,7 @@ export function Confetti({ trigger }: Props) {
       cancelAnimationFrame(animationId);
       window.removeEventListener('resize', handleResize);
     };
-  }, [trigger]);
+  }, [trigger, reduceMotion]);
 
   if (!trigger) return null;
 
