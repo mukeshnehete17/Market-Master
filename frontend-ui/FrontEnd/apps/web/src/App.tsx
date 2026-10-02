@@ -5,6 +5,7 @@ import { GradientBlurBg } from './components/GradientBlurBg';
 import { Login } from './components/Login';
 import { BottomNav, type TabType } from './components/BottomNav';
 import { fetchCurrentUser, logoutUser } from './api/auth';
+import { fetchCurrentGameState } from './api/game';
 import type { User } from './types/api';
 
 // Code-split secondary views to keep initial bundle ultra-light on mobile
@@ -62,6 +63,22 @@ export default function App() {
         const user = await fetchCurrentUser();
         if (user) {
           setCurrentUser(user);
+          if (user.role === 'admin') {
+            setActiveTab('admin');
+          } else {
+            try {
+              const state = await fetchCurrentGameState();
+              if (state && state.game_state !== 'not_joined' && state.player) {
+                setSession({
+                  callsign: state.player.name || user.name,
+                  gameCode: state.game_code || '',
+                  avatar: state.player.avatar || user.avatar || '🦊',
+                });
+              }
+            } catch {
+              // Not in an active game
+            }
+          }
         }
       } catch {
         // No active auth session
@@ -71,6 +88,26 @@ export default function App() {
     }
     checkAuth();
   }, []);
+
+  const handleLogin = async (user: User) => {
+    setCurrentUser(user);
+    if (user.role === 'admin') {
+      setActiveTab('admin');
+    } else {
+      try {
+        const state = await fetchCurrentGameState();
+        if (state && state.game_state !== 'not_joined' && state.player) {
+          setSession({
+            callsign: state.player.name || user.name,
+            gameCode: state.game_code || '',
+            avatar: state.player.avatar || user.avatar || '🦊',
+          });
+        }
+      } catch {
+        // Not in an active game
+      }
+    }
+  };
 
   const handleLogout = async () => {
     await logoutUser();
@@ -102,7 +139,7 @@ export default function App() {
         <main className="main-content">
           {!currentUser ? (
             <section className="login-section" aria-label="Login">
-              <Login onLogin={(user) => setCurrentUser(user)} />
+              <Login onLogin={handleLogin} />
             </section>
           ) : session && activeTab === 'game' ? (
             <GameArena
@@ -114,7 +151,7 @@ export default function App() {
               {activeTab === 'game' && (
                 <section className="join-section" aria-label="Join the game">
                   <JoinGame
-                    illuminateId={currentUser.id}
+                    defaultName={currentUser.name}
                     onJoin={(newSession) => setSession(newSession)}
                   />
                 </section>

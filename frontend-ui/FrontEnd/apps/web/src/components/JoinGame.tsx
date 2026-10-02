@@ -4,29 +4,28 @@ import { joinGame } from '../api/game';
 
 interface Props {
   onJoin: (data: { callsign: string; gameCode: string; avatar: string }) => void;
-  illuminateId: string;
+  defaultName?: string;
 }
 
 const AVATARS = ['🦊', '🐺', '🦁', '🦅', '🦈', '🏴‍☠️'];
 
-export default function JoinGame({ onJoin, illuminateId }: Props) {
-  const [callsign, setCallsign] = useState(illuminateId || '');
+export default function JoinGame({ onJoin, defaultName = '' }: Props) {
+  const [callsign, setCallsign] = useState(defaultName || '');
   const [gameCode, setGameCode] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState('🦊');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-
   useEffect(() => {
-    if (illuminateId) {
-      setCallsign(illuminateId);
+    if (defaultName && (!callsign || callsign.includes('-'))) {
+      setCallsign(defaultName);
     }
-  }, [illuminateId]);
+  }, [defaultName]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!callsign.trim() || !gameCode.trim()) {
-      setError('Please enter both callsign and game code.');
+      setError('Please enter both your name and game code.');
       return;
     }
 
@@ -61,7 +60,7 @@ export default function JoinGame({ onJoin, illuminateId }: Props) {
         <div className="join-title-row">
           <div className="join-illuminate-pill">
             <span className="pill-dot" />
-            <span>SESSION: {illuminateId ? illuminateId.toUpperCase() : 'GUEST TRADER'}</span>
+            <span>SESSION: {defaultName ? defaultName.toUpperCase() : 'AUTHENTICATED TRADER'}</span>
           </div>
 
           <div className="op-logo-wrap">
@@ -108,13 +107,13 @@ export default function JoinGame({ onJoin, illuminateId }: Props) {
 
         <div className="input-fields">
           <div className="input-field-wrap">
-            <label htmlFor="trader-callsign">Trader callsign / Name</label>
+            <label htmlFor="trader-callsign">Trader Name</label>
             <input
               id="trader-callsign"
               name="traderCallsign"
               value={callsign}
               onChange={(e) => setCallsign(e.target.value)}
-              placeholder="ENTER YOUR NAME / CALLSIGN"
+              placeholder="ENTER YOUR NAME"
               autoComplete="name"
               spellCheck={false}
               required
@@ -123,7 +122,7 @@ export default function JoinGame({ onJoin, illuminateId }: Props) {
             />
           </div>
           <div className="input-field-wrap">
-            <label htmlFor="game-code">Game PIN / Code</label>
+            <label htmlFor="game-code">Game PIN</label>
             <input
               id="game-code"
               name="gameCode"

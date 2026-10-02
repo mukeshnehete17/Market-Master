@@ -191,7 +191,13 @@ function ConfirmDialog({
 
 function MarketDesk() {
   const [deck, setDeck] = useState<ControlDeckData | null>(null);
-  const [selectedGameId, setSelectedGameId] = useState<string>('');
+  const [selectedGameId, setSelectedGameId] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem('mm_admin_selected_game_id') || '';
+    } catch {
+      return '';
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
@@ -215,8 +221,11 @@ function MarketDesk() {
       const data = await adminApi.controlDeck(gid || undefined);
       if (isMounted.current) {
         setDeck(data.deck);
-        if (data.deck.game && !selectedGameId) {
+        if (data.deck.game) {
           setSelectedGameId(data.deck.game.id);
+          try {
+            sessionStorage.setItem('mm_admin_selected_game_id', data.deck.game.id);
+          } catch {}
         }
       }
     } catch (err: any) {
@@ -1633,7 +1642,7 @@ function Questions() {
 
 // ---------------- 5. Games ----------------
 
-function Games() {
+function Games({ onOpenDeck }: { onOpenDeck?: (gameId: string) => void }) {
   const [list, setList] = useState<any[]>([]);
   const [allQuestions, setAllQuestions] = useState<any[]>([]);
   const [error, setError] = useState('');
@@ -1641,7 +1650,15 @@ function Games() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [startingId, setStartingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    action: () => void;
+    isDanger: boolean;
+  }>({ isOpen: false, title: '', message: '', action: () => {}, isDanger: true });
   const [form, setForm] = useState({
     name: '',
     starting_capital: 10000,
@@ -1730,6 +1747,22 @@ function Games() {
     }
   };
 
+  const handleDeleteGame = async (gameId: string, gameName: string) => {
+    if (deletingId) return;
+    setDeletingId(gameId);
+    setError('');
+    setSuccessMsg('');
+    try {
+      await adminApi.deleteGame(gameId);
+      setList((prev) => prev.filter((g) => g.id !== gameId));
+      setSuccessMsg(`Game "${gameName}" deleted successfully.`);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete game.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const toggleQuestionSelection = (qid: string | number) => {
     setForm((prev) => {
       const exists = prev.question_ids.includes(qid);
@@ -1742,6 +1775,15 @@ function Games() {
 
   return (
     <div>
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        isDanger={confirmState.isDanger}
+        onConfirm={confirmState.action}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
+      />
+
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
         <button
           type="button"
@@ -1838,6 +1880,7 @@ function Games() {
           const questionCount = g.rounds || (g.questions?.length) || 0;
           const isDraft = g.status === 'draft';
           const canStart = isDraft && questionCount > 0;
+          const canDelete = isDraft && (g.players || 0) === 0;
 
           return (
             <div key={g.id} style={{ ...card, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -1852,12 +1895,26 @@ function Games() {
                   Questions: {questionCount} · Players: {g.players || 0} · Cap: ₹{Number(g.starting_capital).toLocaleString()} · Risk: {g.min_risk}%-{g.max_risk}%
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  style={{ ...btnGhost, padding: '6px 12px', fontSize: '11px' }}
+                  onClick={() => {
+                    try {
+                      sessionStorage.setItem('mm_admin_selected_game_id', g.id);
+                    } catch {}
+                    onOpenDeck?.(g.id);
+                  }}
+                  title="Open this game in the live Market Desk"
+                >
+                  ⚡ Open Desk
+                </button>
+
                 {isDraft && (
                   canStart ? (
                     <button
                       type="button"
-                      style={btnSuccess}
+                      style={{ ...btnSuccess, padding: '6px 12px', fontSize: '11px' }}
                       disabled={startingId === g.id}
                       onClick={() => handleStartGame(g.id)}
                     >
@@ -1866,13 +1923,32 @@ function Games() {
                   ) : (
                     <button
                       type="button"
-                      style={{ ...btnGhost, opacity: 0.5, cursor: 'not-allowed' }}
+                      style={{ ...btnGhost, opacity: 0.5, cursor: 'not-allowed', padding: '6px 12px', fontSize: '11px' }}
                       disabled
                       title="Assign questions before starting"
                     >
                       Assign Questions First
                     </button>
                   )
+                )}
+
+                {canDelete && (
+                  <button
+                    type="button"
+                    style={{ ...btnDanger, padding: '6px 12px', fontSize: '11px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}
+                    disabled={deletingId === g.id}
+                    onClick={() => {
+                      setConfirmState({
+                        isOpen: true,
+                        title: 'Delete Game?',
+                        message: `Are you sure you want to permanently delete draft game "${g.name}" (PIN: ${g.game_pin})?`,
+                        isDanger: true,
+                        action: () => handleDeleteGame(g.id, g.name),
+                      });
+                    }}
+                  >
+                    {deletingId === g.id ? 'Deleting...' : '🗑️ Delete'}
+                  </button>
                 )}
               </div>
             </div>
@@ -2185,7 +2261,7 @@ export function AdminPanel() {
         {section === 'dashboard' && <Dashboard />}
         {section === 'students' && <Students />}
         {section === 'questions' && <Questions />}
-        {section === 'games' && <Games />}
+        {section === 'games' && <Games onOpenDeck={() => setSection('deck')} />}
         {section === 'investments' && <Investments />}
         {section === 'leaderboard' && <Board />}
         {section === 'audit' && <AuditLog />}

@@ -44,9 +44,7 @@ def log_action(admin_id, action, entity_type, entity_id=None, metadata=None):
 
 
 def recent_actions(limit=20):
-    rows = gs.gw_select("admin_actions")
-    rows.sort(key=lambda r: str(r.get("created_at", "")), reverse=True)
-    return rows[:int(limit)]
+    return gs.gw_select("admin_actions", limit=int(limit), order=("created_at", True))
 
 
 # ---------------- dashboard ----------------
@@ -758,7 +756,8 @@ def game_control(admin_id, game_id, op):
         if err:
             return None, err
     elif op == "end":
-        game, err = _transition(game_id, "completed", ("live", "paused", "market_closed"))
+        game, err = _transition(game_id, "completed",
+                               ("draft", "waiting", "live", "paused", "market_closed", "settled"))
         if err:
             return None, err
         for p in gs.gw_select("game_players", {"game_id": str(game_id)}):
