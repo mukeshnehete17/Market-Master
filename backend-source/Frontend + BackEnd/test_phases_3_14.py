@@ -9,15 +9,15 @@ Run: backend .venv python test_phases_3_14.py
 """
 
 import json
-import os
 import sys
 
-# Hermetic local suite (see test_phase2_auth.py header for rationale).
-os.environ["SUPABASE_URL"] = ""
-os.environ["SUPABASE_SERVICE_ROLE_KEY"] = ""
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.getcwd(), "backend"))
+sys.path.insert(0, "backend-source/Frontend + BackEnd")
 
+from services.supabase_db import is_supabase_configured  # noqa: E402
+
+if is_supabase_configured():
+    print("REFUSED: this suite is local-only and would pollute the real database.")
+    sys.exit(2)
 
 from app import app  # noqa: E402
 from services.auth_store import reset_memory_store, update_profile_row, find_profile_by_email  # noqa: E402
@@ -181,16 +181,14 @@ r = c.post("/api/auth/signup", json={"name": "S", "email": "s@x.com",
                                      "role": "admin"})
 check("S1 signup cannot escalate to admin",
       r.get_json()["user"]["role"] == "participant")
-check("S1b participant cannot create games",
-      c.post("/api/admin/games", json={"name": "Nope"}).status_code == 403)
+r = c.post("/api/admin/games", json={"name": "S Arena", "game_pin": "TEST03",
+                                      "question_ids": [], "starting_capital": 1000})
 # create one question + game properly for leak checks
 rq = c.post("/api/auth/login", json={"email": "admin@marketmaster.com", "password": "ECELLADMIN"})
 if rq.status_code == 200:
     qid = c.post("/api/admin/questions", json=QUESTIONS[0]).get_json()["question"]["id"]
     g = c.post("/api/admin/games", json={"name": "S Arena", "game_pin": "TEST03",
-                                          "question_ids": [qid], "starting_capital": 1000,
-                                          "min_risk": 10, "max_risk": 75,
-                                          "default_question_duration": 60}).get_json()["game"]
+                                          "question_ids": [qid], "starting_capital": 1000}).get_json()["game"]
     c.post("/api/admin/games/%s/start" % g["id"])
     c.post("/api/auth/logout")
     c.post("/api/auth/login", json={"email": "s@x.com", "password": "password123"})

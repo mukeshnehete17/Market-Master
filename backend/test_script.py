@@ -1,12 +1,13 @@
 import os
+import sys
+import time
+
+# Hermetic local suite (see test_phase2_auth.py header for rationale).
+os.environ["SUPABASE_URL"] = ""
+os.environ["SUPABASE_SERVICE_ROLE_KEY"] = ""
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.getcwd(), "backend"))
 
-from services.supabase_db import is_supabase_configured  # noqa: E402
-
-if is_supabase_configured():
-    print("REFUSED: test_script.py is local-only and would pollute the real database.")
-    sys.exit(2)
 
 from services.game_store import reset_all, gw_insert  # noqa: E402
 

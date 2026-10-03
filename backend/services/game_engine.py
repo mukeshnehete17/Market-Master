@@ -20,7 +20,7 @@ import uuid
 from flask import session
 
 from services import game_store as gs
-from services.auth_store import find_profile_by_email, find_profile_by_id
+from services.auth_store import find_profile_by_id
 from services.questions_service import validate_player_answer
 from services.verify_token import verify_token
 

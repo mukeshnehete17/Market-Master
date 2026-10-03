@@ -9,14 +9,17 @@ in-memory fallback store. Run with the backend .venv python:
 
 import json
 import os
+import sys
+
+# Hermetic local suite: pre-set empty creds BEFORE any app/services import.
+# python-dotenv resolves backend/.env relative to the caller file and
+# load_dotenv() never overrides existing keys, so this forces the
+# in-memory fallback deterministically. Live path: test_real_supabase_verify.py.
+os.environ["SUPABASE_URL"] = ""
+os.environ["SUPABASE_SERVICE_ROLE_KEY"] = ""
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.getcwd(), "backend"))
 
-from services.supabase_db import is_supabase_configured  # noqa: E402
-
-if is_supabase_configured():
-    print("REFUSED: this suite is local-only and would pollute the real database.")
-    sys.exit(2)
 
 from app import app  # noqa: E402
 from services.auth_store import reset_memory_store  # noqa: E402
