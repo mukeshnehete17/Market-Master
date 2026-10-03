@@ -731,7 +731,12 @@ function MarketDesk({
                   const pct = deck.sentiment?.percentages[opt] || 0;
                   const count = deck.sentiment?.counts[opt] || 0;
                   const cap = deck.sentiment?.capital_by_option[opt] || 0;
-                  const isWinning = (roundStatus === 'result' || roundStatus === 'settled') && q?.correct_option === opt;
+                  const optText = opt === 'A' ? q?.option_a : opt === 'B' ? q?.option_b : opt === 'C' ? q?.option_c : q?.option_d;
+                  const isWinning = (roundStatus === 'result' || roundStatus === 'settled') && (
+                    q?.correct_option === opt ||
+                    q?.correct_option === `Option ${opt}` ||
+                    (optText && q?.correct_option?.toLowerCase() === optText.toLowerCase())
+                  );
 
                   return (
                     <div key={opt}>
@@ -829,7 +834,11 @@ function MarketDesk({
                   {(['a', 'b', 'c', 'd'] as const).map((key) => {
                     const optKey = key.toUpperCase();
                     const text = (q as any)[`option_${key}`];
-                    const isCorrect = q.correct_option === optKey;
+                    const isCorrect = (
+                      q.correct_option === optKey ||
+                      q.correct_option === `Option ${optKey}` ||
+                      (text && q.correct_option?.toLowerCase() === text.toLowerCase())
+                    );
                     const isRevealed = roundStatus === 'result' || roundStatus === 'settled';
 
                     return (
@@ -1687,14 +1696,29 @@ function Questions() {
       {loading ? (
         <Loading label="LOADING QUESTIONS" />
       ) : list.length === 0 ? (
-        <div style={{ ...card, textAlign: 'center', color: '#6b7280', fontWeight: '700' }}>No questions in bank.</div>
+        <div style={{ ...card, textAlign: 'center', color: '#6b7280', fontWeight: '700' }}>No questions available.</div>
       ) : (
-        list.map((q) => (
+        list.map((q, idx) => (
           <div key={q.id} style={{ ...card, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <div style={{ fontSize: '13px', maxWidth: '75%' }}>
-              <strong>{q.question_text}</strong>
-              <div style={{ color: '#6b7280', fontSize: '12px', marginTop: '2px' }}>
-                Correct: <strong style={{ color: '#16a34a' }}>{q.correct_option}</strong> · {q.category} · {q.duration_seconds}s · {q.is_active ? 'Active' : 'Archived'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <span style={{ background: '#000000', color: '#ffffff', borderRadius: '4px', padding: '2px 7px', fontSize: '11px', fontWeight: '800' }}>
+                  #{idx + 1}
+                </span>
+                <strong>{q.question_text}</strong>
+              </div>
+              <div style={{ color: '#6b7280', fontSize: '12px', marginTop: '2px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                <span>Category: <strong>{q.category}</strong></span>
+                <span>·</span>
+                <span>Correct: <strong style={{ color: '#16a34a' }}>{q.correct_option}</strong></span>
+                <span>·</span>
+                <span style={{ background: '#f3f4f6', padding: '1px 6px', borderRadius: '4px', fontWeight: '800', color: '#111827' }}>
+                  {q.duration_seconds || 15} SEC
+                </span>
+                <span>·</span>
+                <span style={{ color: q.is_active ? '#16a34a' : '#6b7280', fontWeight: '700' }}>
+                  {q.is_active ? 'Active' : 'Archived'}
+                </span>
               </div>
             </div>
             <div style={{ display: 'flex', gap: '6px' }}>
@@ -1704,13 +1728,20 @@ function Questions() {
                 onClick={() => {
                   setEditing(q);
                   setShowAdd(true);
+                  const cOpt = (q.correct_option || '').trim();
+                  let resolvedSelect = cOpt;
+                  if (cOpt === 'A' || cOpt === 'Option A' || (q.option_a && cOpt.toLowerCase() === q.option_a.toLowerCase())) resolvedSelect = 'Option A';
+                  else if (cOpt === 'B' || cOpt === 'Option B' || (q.option_b && cOpt.toLowerCase() === q.option_b.toLowerCase())) resolvedSelect = 'Option B';
+                  else if (cOpt === 'C' || cOpt === 'Option C' || (q.option_c && cOpt.toLowerCase() === q.option_c.toLowerCase())) resolvedSelect = 'Option C';
+                  else if (cOpt === 'D' || cOpt === 'Option D' || (q.option_d && cOpt.toLowerCase() === q.option_d.toLowerCase())) resolvedSelect = 'Option D';
+
                   setForm({
                     question_text: q.question_text || '',
                     option_a: q.option_a || '',
                     option_b: q.option_b || '',
                     option_c: q.option_c || '',
                     option_d: q.option_d || '',
-                    correct_option: q.correct_option || '',
+                    correct_option: resolvedSelect,
                     explanation: q.explanation || '',
                     category: q.category || 'Market Intelligence',
                     duration_seconds: q.duration_seconds || 15,
