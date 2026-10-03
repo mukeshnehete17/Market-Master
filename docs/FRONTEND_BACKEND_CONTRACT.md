@@ -1,0 +1,19 @@
+# Market Master — Frontend / Backend Contract Mapping
+
+## End-to-End Tracing Matrix
+
+| User Action / UI Feature | Frontend Component | API Client Method | HTTP Request | Backend Route | Service Handler | Supabase Query / Operation | Frontend State Update |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Trader Login** | `Login.tsx` | `loginUser()` | `POST /api/auth/login` | `routes/login.py` | `auth_service.login_user()` | `SELECT * FROM profiles WHERE email=...` | Sets `mm_auth_token` in `localStorage`, updates `currentUser` state |
+| **Join Game** | `JoinGame.tsx` | `joinGame()` | `POST /api/game/join` | `routes/api_game.py:api_join` | `game_engine.join_game()` | `SELECT FROM games WHERE game_pin=...; INSERT INTO game_players` | Updates `session` with callsign, game PIN, transitions to `<GameArena />` |
+| **Fetch Active Round** | `GameArena.tsx` | `fetchCurrentGameState()`| `GET /api/game/current` | `routes/api_game.py:api_current` | `game_engine.build_current_state()` | `SELECT FROM rounds; SELECT FROM questions` (Sanitized) | Sets `gameState`, `question`, `timeRemaining`, `serverDeadline` |
+| **Commit Risk Bid** | `GameArena.tsx` | `submitPosition()` | `POST /api/game/submit` | `routes/api_game.py:api_submit` | `game_engine.submit_position()` | `INSERT INTO answers; INSERT INTO positions` | Sets `pendingPosition`, activates locked position overlay |
+| **Fetch Settlement** | `GameArena.tsx` | `fetchRoundResult()` | `GET /api/game/result` | `routes/api_game.py:api_result` | `game_engine.build_result_state()` | `SELECT FROM positions WHERE round_id=...` | Displays correct option, explanation, P/L banner, updated balance |
+| **Advance Round** | `GameArena.tsx` | `advanceNextRound()` | `POST /api/game/next` | `routes/api_game.py:api_next` | `game_engine.next_round()` | Checks open round in `rounds` table | If new round open, resets bid inputs; if completed, transitions to Game Over |
+| **Admin Deck Refresh** | `AdminPanel.tsx` | `adminApi.controlDeck()`| `GET /api/admin/deck` | `routes/admin.py:deck` | `admin_service.control_deck_state()` | Batched queries on `games`, `rounds`, `positions`, `profiles` | Updates `deck` state in memory, updates sentiment counters |
+| **Publish Question** | `AdminPanel.tsx` | `adminApi.controlGame()`| `POST /api/admin/games/:id/control` | `routes/admin.py:game_control` | `admin_service.game_control("start" / "next_round")` | `INSERT INTO rounds (status='question_open'); INSERT admin_actions` | Action button switches to "CLOSE MARKET" |
+| **Close Market** | `AdminPanel.tsx` | `adminApi.controlGame()`| `POST /api/admin/games/:id/control` | `routes/admin.py:game_control` | `admin_service.game_control("close_market")` | `UPDATE rounds SET status='market_closed'; INSERT admin_actions` | Action button switches to "REVEAL ANSWER" |
+| **Reveal Answer** | `AdminPanel.tsx` | `adminApi.controlGame()`| `POST /api/admin/games/:id/control` | `routes/admin.py:game_control` | `admin_service.game_control("reveal")` | `UPDATE rounds SET status='result'; INSERT admin_actions` | Action button switches to "SETTLE ROUND" |
+| **Settle Round** | `AdminPanel.tsx` | `adminApi.controlGame()`| `POST /api/admin/games/:id/control` | `routes/admin.py:game_control` | `admin_service.game_control("settle")` | Atomic updates to `game_players`, `positions`, `transactions` | Action button switches to "PUBLISH QUESTION N+1" |
+| **Create Question** | `AdminPanel.tsx` | `adminApi.createQuestion()`| `POST /api/admin/questions` | `routes/admin.py:questions` | `admin_service.create_question()` | `INSERT INTO questions ... RETURNING *` | Question prepends to local list, form resets |
+| **Create Game** | `AdminPanel.tsx` | `adminApi.createGame()` | `POST /api/admin/games` | `routes/admin.py:games` | `admin_service.create_game()` | `INSERT INTO games; INSERT INTO game_questions` | Shows success banner with "⚡ Open in Market Desk" button |

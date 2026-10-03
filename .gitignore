@@ -1,0 +1,26 @@
+# Root gitignore for Market Master
+
+# Environment variables & secrets (NEVER commit)
+.env
+.env.*
+.env.local
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# Node & Frontend
+node_modules/
+dist/
+build/
+.pnpm-store/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
