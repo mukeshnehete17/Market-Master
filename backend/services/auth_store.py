@@ -79,6 +79,43 @@ def reset_memory_store():
     _seed_memory_store()
 
 
+import time
+
+_CACHE_TTL = 5.0  # seconds
+_profile_cache_by_id = {}  # id -> (timestamp, row)
+_profile_cache_by_email = {}  # email -> (timestamp, row)
+
+
+def _get_cached_by_id(uid):
+    item = _profile_cache_by_id.get(str(uid))
+    if item and (time.time() - item[0] < _CACHE_TTL):
+        return dict(item[1]) if item[1] else None
+    return None
+
+
+def _set_cached_by_id(uid, row):
+    if len(_profile_cache_by_id) > 2000:
+        _profile_cache_by_id.clear()
+        _profile_cache_by_email.clear()
+    _profile_cache_by_id[str(uid)] = (time.time(), dict(row) if row else None)
+    if row and row.get("email"):
+        _profile_cache_by_email[_norm_email(row["email"])] = (time.time(), dict(row))
+
+
+def _get_cached_by_email(email):
+    item = _profile_cache_by_email.get(_norm_email(email))
+    if item and (time.time() - item[0] < _CACHE_TTL):
+        return dict(item[1]) if item[1] else None
+    return None
+
+
+def _invalidate_profile_cache(uid=None, email=None):
+    if uid:
+        _profile_cache_by_id.pop(str(uid), None)
+    if email:
+        _profile_cache_by_email.pop(_norm_email(email), None)
+
+
 def _to_row(data):
     """Normalize a Supabase profiles row to the internal dict shape."""
     if not isinstance(data, dict):
@@ -99,13 +136,18 @@ def find_profile_by_email(email):
     email = _norm_email(email)
     if not email:
         return None
+    cached = _get_cached_by_email(email)
+    if cached is not None:
+        return cached
     if _use_supabase():
         try:
             client = get_supabase_client()
             resp = client.table("profiles").select("*").eq("email", email).limit(1).execute()
             rows = getattr(resp, "data", None) or []
             if rows:
-                return _to_row(rows[0])
+                row = _to_row(rows[0])
+                _set_cached_by_id(row["id"], row)
+                return row
             return None
         except DatabaseUnavailable:
             raise
@@ -120,6 +162,9 @@ def find_profile_by_id(user_id):
     user_id = str(user_id or "").strip()
     if not user_id:
         return None
+    cached = _get_cached_by_id(user_id)
+    if cached is not None:
+        return cached
     # Validate UUID before querying Supabase Postgres (id column is type UUID).
     # Non-UUID queries would cause Postgres error 22P02 (invalid input syntax for type uuid).
     is_uuid = False
@@ -138,7 +183,9 @@ def find_profile_by_id(user_id):
             resp = client.table("profiles").select("*").eq("id", user_id).limit(1).execute()
             rows = getattr(resp, "data", None) or []
             if rows:
-                return _to_row(rows[0])
+                row = _to_row(rows[0])
+                _set_cached_by_id(row["id"], row)
+                return row
             return None
         except DatabaseUnavailable:
             raise
@@ -166,6 +213,7 @@ def create_profile_row(name, email, password_hash, role="participant", avatar="ð
             }
             resp = client.table("profiles").insert(payload).execute()
             rows = getattr(resp, "data", None) or []
+            _invalidate_profile_cache(uid=profile_id, email=email)
             if rows:
                 return _to_row(rows[0])
             return _to_row(payload)
@@ -187,6 +235,7 @@ def create_profile_row(name, email, password_hash, role="participant", avatar="ð
     }
     _mem_by_email[email] = row
     _mem_by_id[profile_id] = row
+    _invalidate_profile_cache(uid=profile_id, email=email)
     return row
 
 
@@ -220,6 +269,7 @@ def update_profile_row(user_id, patch):
     if not allowed:
         return None
     user_id_str = str(user_id or "").strip()
+    _invalidate_profile_cache(uid=user_id_str)
     if _use_supabase():
         try:
             uuid.UUID(user_id_str)

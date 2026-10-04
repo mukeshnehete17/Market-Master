@@ -42,6 +42,21 @@ def log_action(admin_id, action, entity_type, entity_id=None, metadata=None):
         return None
 
 
+_cached_settings = None
+
+def _default_settings():
+    global _cached_settings
+    if _cached_settings is not None:
+        return _cached_settings
+    rows = gs.gw_select("game_settings", limit=1)
+    if rows:
+        _cached_settings = rows[0]
+        return _cached_settings
+    _cached_settings = {"default_starting_capital": 10000, "default_min_risk": 10,
+                        "default_max_risk": 75, "default_question_duration": 15}
+    return _cached_settings
+
+
 def recent_actions(limit=20):
     return gs.gw_select("admin_actions", limit=int(limit), order=("created_at", True))
 
@@ -49,25 +64,43 @@ def recent_actions(limit=20):
 # ---------------- dashboard ----------------
 
 def dashboard_metrics():
-    profiles = list_profiles()
-    students = [p for p in profiles if p.get("role") == "participant"]
-    active = [p for p in students if (p.get("status") or "active") == "active"]
-    disabled = [p for p in students if (p.get("status") or "") in ("disabled", "banned")]
-    questions = gs.gw_select("questions")
+    # Parallel batch: students, questions, games, recent_actions
+    query_specs = [
+        {"table": "profiles", "filters": {"role": "participant"}, "columns": "id,status"},
+        {"table": "questions", "columns": "id,is_active"},
+        {"table": "games", "columns": "id,name,game_pin,status,created_at,starting_capital,min_risk,max_risk,default_question_duration,created_by", "order": ("created_at", True)},
+        {"table": "admin_actions", "limit": 10, "order": ("created_at", True)},
+    ]
+    students, questions, games, actions = gs.gw_parallel_select(query_specs)
+    active_s = [p for p in students if (p.get("status") or "active") == "active"]
+    disabled_s = [p for p in students if (p.get("status") or "") in ("disabled", "banned")]
     active_q = [q for q in questions if q.get("is_active")]
-    games = gs.gw_select("games")
+    
     live_games = [g for g in games if g.get("status") in ("live", "market_closed", "paused")]
     current_game = live_games[0] if live_games else None
+    
     players_in_game = 0
     current_round = None
     current_question = None
     leaderboard = []
+    
     if current_game:
         from services import game_engine as engine
-        players = gs.gw_select("game_players", {"game_id": str(current_game["id"])})
+        gid = str(current_game["id"])
+        sub_specs = [
+            {"table": "game_players", "filters": {"game_id": gid}},
+            {"table": "rounds", "filters": {"game_id": gid}},
+            {"table": "answers", "filters": {"game_id": gid}},
+        ]
+        players, rounds, all_answers = gs.gw_parallel_select(sub_specs)
         players_in_game = len(players)
-        leaderboard = engine.game_leaderboard(current_game)[:10]
-        rounds = gs.gw_select("rounds", {"game_id": str(current_game["id"])})
+        p_uids = [str(p["user_id"]) for p in players if p.get("user_id")]
+        profiles_dict = {
+            str(p["id"]): p for p in (
+                gs.gw_select("profiles", {"id": p_uids}, columns="id,name,email,avatar,role,status") if p_uids else []
+            )
+        }
+        leaderboard = engine.game_leaderboard(current_game, profiles_dict=profiles_dict, all_answers=all_answers, all_players=players)[:10]
         live_rounds = [r for r in rounds if r.get("status") in ("question_open", "market_open")]
         if live_rounds:
             live_rounds.sort(key=lambda r: int(r.get("round_number", 0)), reverse=True)
@@ -76,10 +109,11 @@ def dashboard_metrics():
             qrow = gs.get_question_row(live_rounds[0].get("question_id"))
             if qrow:
                 current_question = gs.sanitize_question(qrow)
+    
     return {
         "total_students": len(students),
-        "active_students": len(active),
-        "disabled_students": len(disabled),
+        "active_students": len(active_s),
+        "disabled_students": len(disabled_s),
         "total_questions": len(questions),
         "active_questions": len(active_q),
         "total_games": len(games),
@@ -91,7 +125,7 @@ def dashboard_metrics():
         "current_round": current_round,
         "current_question": current_question,
         "leaderboard": leaderboard,
-        "recent_actions": recent_actions(10),
+        "recent_actions": actions,
     }
 
 
@@ -99,31 +133,30 @@ def control_deck_state(game_id=None):
     """Full operational state for the live Admin Control Deck."""
     from services import game_engine as engine
 
-    games = gs.gw_select("games")
-    games.sort(key=lambda g: str(g.get("created_at", "")), reverse=True)
-
-    target_game = None
+    # Concurrent batch 1: games list, recent actions, total counts
+    init_specs = [
+        {"table": "games", "columns": "id,name,game_pin,status,created_at,starting_capital,min_risk,max_risk,default_question_duration,created_by", "order": ("created_at", True)},
+        {"table": "admin_actions", "limit": 25, "order": ("created_at", True)},
+        {"table": "profiles", "filters": {"role": "participant"}, "columns": "id"},
+        {"table": "questions", "columns": "id"},
+    ]
+    
+    # If game_id is provided, also fetch target game data in parallel batch 1
     if game_id:
-        rows = [g for g in games if str(g.get("id")) == str(game_id)]
-        if rows:
-            target_game = rows[0]
-
-    if not target_game:
-        # Prioritize live / active games so games in progress never disappear
-        live = [g for g in games if g.get("status") in ("live", "paused", "market_closed")]
-        if live:
-            target_game = live[0]
-        else:
-            waiting = [g for g in games if g.get("status") in ("waiting", "draft")]
-            if waiting:
-                target_game = waiting[0]
-            elif games:
-                target_game = games[0]
-
-    profiles = list_profiles()
-    profiles_dict = {str(p.get("id")): p for p in profiles}
-    students = [p for p in profiles if p.get("role") == "participant"]
-    all_questions = gs.gw_select("questions")
+        gid = str(game_id)
+        init_specs.extend([
+            {"table": "game_questions", "filters": {"game_id": gid}},
+            {"table": "rounds", "filters": {"game_id": gid}},
+            {"table": "game_players", "filters": {"game_id": gid}},
+            {"table": "answers", "filters": {"game_id": gid}},
+            {"table": "positions", "filters": {"game_id": gid}},
+        ])
+    
+    init_results = gs.gw_parallel_select(init_specs)
+    games_summary_raw = init_results[0]
+    recent_acts = init_results[1]
+    total_stus = len(init_results[2])
+    total_qs = len(init_results[3])
 
     games_summary = [
         {
@@ -132,25 +165,61 @@ def control_deck_state(game_id=None):
             "game_pin": str(g.get("game_pin", "")),
             "status": str(g.get("status", "draft")),
         }
-        for g in games
+        for g in games_summary_raw
     ]
+
+    target_game = None
+    if game_id:
+        match = next((g for g in games_summary_raw if str(g.get("id")) == str(game_id)), None)
+        if match:
+            target_game = match
+        else:
+            rows = gs.gw_select("games", {"id": str(game_id)}, limit=1)
+            if rows:
+                target_game = rows[0]
+    
+    if not target_game:
+        # Prioritize live / active games so games in progress never disappear
+        live = [g for g in games_summary_raw if g.get("status") in ("live", "paused", "market_closed")]
+        if live:
+            target_game = live[0]
+        else:
+            waiting = [g for g in games_summary_raw if g.get("status") in ("waiting", "draft")]
+            if waiting:
+                target_game = waiting[0]
+            elif games_summary_raw:
+                target_game = games_summary_raw[0]
 
     if not target_game:
         return {
             "has_game": False,
-            "total_students": len(students),
-            "total_questions": len(all_questions),
-            "total_games": len(games),
-            "recent_actions": recent_actions(25),
+            "total_students": total_stus,
+            "total_questions": total_qs,
+            "total_games": len(games_summary_raw),
+            "recent_actions": recent_acts,
             "games_list": games_summary,
         }
 
     gid = str(target_game["id"])
-    gqs = gs.gw_select("game_questions", {"game_id": gid})
+    if game_id and str(target_game["id"]) == str(game_id) and len(init_results) >= 9:
+        gqs = init_results[4]
+        rounds = init_results[5]
+        players_rows = init_results[6]
+        all_game_answers = init_results[7]
+        all_game_positions = init_results[8]
+    else:
+        game_sub_specs = [
+            {"table": "game_questions", "filters": {"game_id": gid}},
+            {"table": "rounds", "filters": {"game_id": gid}},
+            {"table": "game_players", "filters": {"game_id": gid}},
+            {"table": "answers", "filters": {"game_id": gid}},
+            {"table": "positions", "filters": {"game_id": gid}},
+        ]
+        gqs, rounds, players_rows, all_game_answers, all_game_positions = gs.gw_parallel_select(game_sub_specs)
+
     gqs.sort(key=lambda r: int(r.get("round_number", 0)))
     total_rounds = len(gqs)
 
-    rounds = gs.gw_select("rounds", {"game_id": gid})
     rounds.sort(key=lambda r: int(r.get("round_number", 0)))
 
     current_round = None
@@ -181,22 +250,32 @@ def control_deck_state(game_id=None):
             }
 
     players_rows = gs.gw_select("game_players", {"game_id": gid})
-    players_list = []
+    player_uids = [str(p.get("user_id")) for p in players_rows if p.get("user_id")]
+    profiles_dict = {
+        str(p["id"]): p for p in (
+            gs.gw_select("profiles", {"id": player_uids}, columns="id,name,email,avatar,role,status") if player_uids else []
+        )
+    }
+
+    all_game_answers = gs.gw_select("answers", {"game_id": gid})
+    all_game_positions = gs.gw_select("positions", {"game_id": gid})
+
     current_round_answers = {}
     current_round_positions = {}
 
     if current_round:
         rid = str(current_round["id"])
-        ans_rows = gs.gw_select("answers", {"game_id": gid, "round_id": rid})
-        for a in ans_rows:
-            current_round_answers[str(a.get("user_id"))] = a
-        pos_rows = gs.gw_select("positions", {"game_id": gid, "round_id": rid})
-        for p in pos_rows:
-            current_round_positions[str(p.get("user_id"))] = p
+        for a in all_game_answers:
+            if str(a.get("round_id")) == rid:
+                current_round_answers[str(a.get("user_id"))] = a
+        for p in all_game_positions:
+            if str(p.get("round_id")) == rid:
+                current_round_positions[str(p.get("user_id"))] = p
 
     total_capital_at_risk = 0.0
     sentiment_counts = {"A": 0, "B": 0, "C": 0, "D": 0}
     sentiment_capital = {"A": 0.0, "B": 0.0, "C": 0.0, "D": 0.0}
+    players_list = []
 
     for p in players_rows:
         uid = str(p.get("user_id"))
@@ -247,8 +326,9 @@ def control_deck_state(game_id=None):
     for k, v in sentiment_counts.items():
         sentiment_percentages[k] = round((v / submitted_count * 100), 1) if submitted_count > 0 else 0.0
 
-    trades = game_trades(gid) or []
-    leaderboard = engine.game_leaderboard(target_game)
+    rounds_by_id = {str(r.get("id")): r for r in rounds}
+    trades = game_trades(gid, profiles_dict=profiles_dict, all_rounds=rounds_by_id, all_answers=all_game_answers, all_positions=all_game_positions) or []
+    leaderboard = engine.game_leaderboard(target_game, profiles_dict=profiles_dict, all_answers=all_game_answers, all_players=players_rows)
 
     biggest_gainer = None
     biggest_drawdown = None
@@ -305,11 +385,11 @@ def control_deck_state(game_id=None):
         },
         "leaderboard": leaderboard,
         "recent_trades": trades[-30:] if trades else [],
-        "recent_actions": recent_actions(25),
+        "recent_actions": recent_acts,
         "games_list": games_summary,
-        "total_students": len(students),
-        "total_questions": len(all_questions),
-        "total_games": len(games),
+        "total_students": total_stus,
+        "total_questions": total_qs,
+        "total_games": len(games_summary_raw),
     }
 
 
@@ -531,11 +611,14 @@ def _validate_game_payload(data, partial=False):
 
 
 def list_games():
-    games = gs.gw_select("games")
+    games = gs.gw_select("games", order=("created_at", True))
     if not games:
         return []
-    all_gqs = gs.gw_select("game_questions")
-    all_gps = gs.gw_select("game_players")
+    sub_specs = [
+        {"table": "game_questions", "columns": "id,game_id"},
+        {"table": "game_players", "columns": "id,game_id"},
+    ]
+    all_gqs, all_gps = gs.gw_parallel_select(sub_specs)
 
     rounds_count = {}
     for gq in all_gqs:
@@ -562,20 +645,16 @@ def get_game_detail(game_id):
     if not rows:
         return None
     g = dict(rows[0])
-    gqs = gs.gw_select("game_questions", {"game_id": str(game_id)})
-    gqs.sort(key=lambda r: int(r.get("round_number", 0)))
+    sub_specs = [
+        {"table": "game_questions", "filters": {"game_id": str(game_id)}, "order": ("round_number", False)},
+        {"table": "rounds", "filters": {"game_id": str(game_id)}, "order": ("round_number", False)},
+        {"table": "game_players", "filters": {"game_id": str(game_id)}, "columns": "id,user_id,status,score,current_capital"},
+    ]
+    gqs, rounds, players = gs.gw_parallel_select(sub_specs)
     g["questions"] = gqs
-    g["rounds"] = gs.gw_select("rounds", {"game_id": str(game_id)})
-    g["players"] = gs.gw_select("game_players", {"game_id": str(game_id)})
+    g["rounds"] = rounds
+    g["players"] = players
     return g
-
-
-def _default_settings():
-    rows = gs.gw_select("game_settings", limit=1)
-    if rows:
-        return rows[0]
-    return {"default_starting_capital": 10000, "default_min_risk": 10,
-            "default_max_risk": 75, "default_question_duration": 15}
 
 
 def admin_create_game(admin_id, data, creator_id):
@@ -586,7 +665,7 @@ def admin_create_game(admin_id, data, creator_id):
     if gs.gw_select("games", {"game_pin": pin}, limit=1):
         return None, "Game PIN already exists."
     settings = _default_settings()
-    game = gs.gw_insert("games", {
+    game_row = {
         "id": str(uuid.uuid4()),
         "game_pin": pin,
         "name": str(data.get("name")).strip()[:120],
@@ -596,7 +675,8 @@ def admin_create_game(admin_id, data, creator_id):
         "max_risk": float(data.get("max_risk", settings["default_max_risk"])),
         "default_question_duration": int(data.get("default_question_duration", settings["default_question_duration"])),
         "created_by": str(creator_id),
-    })
+    }
+    game = gs.gw_insert("games", game_row)
     qids = data.get("question_ids") or []
     if qids:
         err = set_game_questions(game["id"], qids)
@@ -617,7 +697,7 @@ def set_game_questions(game_id, question_ids):
         seen.add(qid)
         ordered.append(qid)
 
-    all_q_rows = {str(q.get("id")): q for q in gs.gw_select("questions")}
+    all_q_rows = {str(q.get("id")): q for q in gs.gw_select("questions", {"id": ordered})}
     for qid in ordered:
         if qid not in all_q_rows:
             direct_q = gs.get_question_row(qid) or gs.gw_select("questions", {"id": qid}, limit=1)
@@ -626,16 +706,18 @@ def set_game_questions(game_id, question_ids):
             else:
                 return "Question not found: {}".format(qid)
 
-    for r in gs.gw_select("game_questions", {"game_id": str(game_id)}):
-        gs.gw_delete("game_questions", {"id": str(r.get("id"))})
+    gs.gw_delete("game_questions", {"game_id": str(game_id)})
 
+    records_to_insert = []
     for i, qid in enumerate(ordered, start=1):
         qrow = all_q_rows[qid]
-        gs.gw_insert("game_questions", {
+        records_to_insert.append({
             "id": str(uuid.uuid4()), "game_id": str(game_id),
             "question_id": qid, "round_number": i,
             "duration_seconds": qrow.get("duration_seconds", 15),
         })
+    if records_to_insert:
+        gs.gw_insert("game_questions", records_to_insert)
     return None
 
 
@@ -801,11 +883,36 @@ def game_control(admin_id, game_id, op):
                 from services import game_engine as engine
                 players = gs.gw_select("game_players", {"game_id": str(game_id)})
                 existing_answers = {str(a.get("user_id")) for a in gs.gw_select("answers", {"round_id": str(rnd.get("id"))})}
+                missing_answers = []
+                missing_positions = []
                 for p in players:
                     p_uid = str(p.get("user_id"))
                     if p_uid not in existing_answers:
-                        prof = {"id": p_uid, "name": "Student"}
-                        engine.timeout_round(game, prof, rnd)
+                        missing_answers.append({
+                            "id": str(uuid.uuid4()),
+                            "round_id": str(rnd.get("id")),
+                            "game_id": str(game_id),
+                            "user_id": p_uid,
+                            "selected_option": "Timed Out",
+                            "is_correct": False,
+                            "timed_out": True,
+                        })
+                        missing_positions.append({
+                            "id": str(uuid.uuid4()),
+                            "round_id": str(rnd.get("id")),
+                            "game_id": str(game_id),
+                            "user_id": p_uid,
+                            "risk_percent": 0,
+                            "bid_amount": 0,
+                            "multiplier": 0,
+                            "potential_profit": 0,
+                            "potential_loss": 0,
+                            "settled_at": now,
+                        })
+                if missing_answers:
+                    gs.gw_insert("answers", missing_answers)
+                if missing_positions:
+                    gs.gw_insert("positions", missing_positions)
             except Exception:
                 pass
         elif op == "next":
@@ -830,23 +937,26 @@ def game_control(admin_id, game_id, op):
 
 # ---------------- trades (admin history view) ----------------
 
-def game_trades(game_id):
+def game_trades(game_id, profiles_dict=None, all_rounds=None, all_answers=None, all_positions=None):
     """Every recorded answer/position in a game with player + question info."""
     from services import game_engine as engine
     game_id = str(game_id)
-    games = gs.gw_select("games", {"id": game_id}, limit=1)
-    if not games:
-        return None
-    rounds = {str(r.get("id")): r for r in gs.gw_select("rounds", {"game_id": game_id})}
-    answers = gs.gw_select("answers", {"game_id": game_id})
+    rounds = all_rounds if all_rounds is not None else {str(r.get("id")): r for r in gs.gw_select("rounds", {"game_id": game_id})}
+    answers = all_answers if all_answers is not None else gs.gw_select("answers", {"game_id": game_id})
     if not answers:
         return []
 
-    positions = gs.gw_select("positions", {"game_id": game_id})
+    positions = all_positions if all_positions is not None else gs.gw_select("positions", {"game_id": game_id})
     pos_lookup = {(str(p.get("round_id")), str(p.get("user_id"))): p for p in positions}
 
-    all_q_rows = {str(q.get("id")): q for q in gs.gw_select("questions")}
-    all_profiles = {str(p.get("id")): p for p in list_profiles()}
+    question_ids = list({str(r.get("question_id")) for r in rounds.values() if r.get("question_id")})
+    all_q_rows = {str(q.get("id")): q for q in gs.gw_select("questions", {"id": question_ids})}
+
+    if profiles_dict is None:
+        user_ids = list({str(a.get("user_id")) for a in answers if a.get("user_id")})
+        all_profiles = {str(p.get("id")): p for p in (gs.gw_select("profiles", {"id": user_ids}, columns="id,name,email,avatar") if user_ids else [])}
+    else:
+        all_profiles = profiles_dict
 
     out = []
     for a in answers:

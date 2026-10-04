@@ -225,11 +225,14 @@ def build_current_state(game, user, avatar="🦊"):
     if capital <= 0:
         return _gameover(game, user, player, avatar, reason="bankrupt")
 
-    # Authoritative rounds for this game
-    all_gqs = game_rounds(str(game["id"]))
+    # Authoritative rounds for this game (queried concurrently)
+    gid = str(game["id"])
+    sub_specs = [
+        {"table": "game_questions", "filters": {"game_id": gid}, "order": ("round_number", False)},
+        {"table": "rounds", "filters": {"game_id": gid}},
+    ]
+    all_gqs, rounds = gs.gw_parallel_select(sub_specs)
     total = len(all_gqs)
-
-    rounds = gs.gw_select("rounds", {"game_id": str(game["id"])})
     rounds.sort(key=lambda r: int(r.get("round_number", 0)))
 
     if not rounds:
@@ -250,11 +253,16 @@ def build_current_state(game, user, avatar="🦊"):
     n = int(round_row.get("round_number", 1))
     r_status = str(round_row.get("status", "question_open"))
 
-    # Check if this player already answered the current round
-    has_answered = bool(
-        gs.gw_select("answers", {"round_id": str(round_row["id"]), "user_id": str(user["id"])}, limit=1)
-        or gs.gw_select("positions", {"round_id": str(round_row["id"]), "user_id": str(user["id"])}, limit=1)
-    )
+    # Fetch answers and positions concurrently for the current round
+    rid, uid = str(round_row["id"]), str(user["id"])
+    sub_ans_specs = [
+        {"table": "answers", "filters": {"round_id": rid, "user_id": uid}, "limit": 1},
+        {"table": "positions", "filters": {"round_id": rid, "user_id": uid}, "limit": 1},
+    ]
+    ans_rows, pos_rows = gs.gw_parallel_select(sub_ans_specs)
+    ans = ans_rows[0] if ans_rows else None
+    pos = pos_rows[0] if pos_rows else None
+    has_answered = bool(ans or pos)
 
     if r_status in ("question_open", "market_open"):
         gq = next((g for g in all_gqs if int(g.get("round_number", 0)) == int(n)), {})
@@ -263,19 +271,17 @@ def build_current_state(game, user, avatar="🦊"):
 
         if has_answered:
             # Player already locked their position; market still open
-            pos_row = gs.gw_select("positions", {"round_id": str(round_row["id"]), "user_id": str(user["id"])}, limit=1)
-            pos = pos_row[0] if pos_row else {}
-            ans_row = gs.gw_select("answers", {"round_id": str(round_row["id"]), "user_id": str(user["id"])}, limit=1)
-            ans = ans_row[0] if ans_row else {}
+            pos_dict = pos or {}
+            ans_dict = ans or {}
             return {"success": True, "game_state": "market",
                     "player": _player_payload(user, player, avatar),
                     "game_code": game.get("game_pin"),
                     "pending_position": {
-                        "answer": ans.get("selected_option", ""),
-                        "risk": "{}%".format(pos.get("risk_percent", 0)),
-                        "risk_multiplier": pos.get("multiplier", 0),
-                        "exposure": float(pos.get("bid_amount", 0) or 0),
-                        "bid_amount": float(pos.get("bid_amount", 0) or 0),
+                        "answer": ans_dict.get("selected_option", ""),
+                        "risk": "{}%".format(pos_dict.get("risk_percent", 0)),
+                        "risk_multiplier": pos_dict.get("multiplier", 0),
+                        "exposure": float(pos_dict.get("bid_amount", 0) or 0),
+                        "bid_amount": float(pos_dict.get("bid_amount", 0) or 0),
                     },
                     "deadline": deadline,
                     "time_remaining": max(0, int(deadline - now)),
@@ -811,21 +817,24 @@ def player_profile(game, user, avatar="🦊"):
                        "history": history}}, 200
 
 
-def game_leaderboard(game):
+def game_leaderboard(game, profiles_dict=None, all_answers=None, all_players=None):
     """High-performance batch leaderboard with multi-factor tie-break ranking."""
     game_id = str(game["id"])
-    players = gs.gw_select("game_players", {"game_id": game_id})
+    players = all_players if all_players is not None else gs.gw_select("game_players", {"game_id": game_id})
     if not players:
         return []
 
-    # Batch fetch answers, positions, and profiles in 3 queries total
-    all_answers = gs.gw_select("answers", {"game_id": game_id})
-    from services.auth_store import list_profiles
-    all_profiles = {str(p["id"]): p for p in list_profiles()}
+    # Batch fetch answers for this game
+    answers_list = all_answers if all_answers is not None else gs.gw_select("answers", {"game_id": game_id})
+    if profiles_dict is None:
+        player_uids = [str(p.get("user_id")) for p in players if p.get("user_id")]
+        all_profiles = {str(p["id"]): p for p in (gs.gw_select("profiles", {"id": player_uids}, columns="id,name,avatar") if player_uids else [])}
+    else:
+        all_profiles = profiles_dict
 
     # Group answers by user_id
     answers_by_user = {}
-    for a in all_answers:
+    for a in answers_list:
         uid = str(a.get("user_id", ""))
         if uid not in answers_by_user:
             answers_by_user[uid] = []

@@ -15,12 +15,14 @@ fallback ids), so legacy int submissions keep working.
 
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 from services.supabase_db import get_supabase_client, is_supabase_configured
 from services.db_errors import DatabaseUnavailable
 
 _mem = {}
 _seeded = False
+_query_executor = ThreadPoolExecutor(max_workers=16)
 
 
 def _tables():
@@ -112,12 +114,17 @@ def _rows(table):
 
 def _match(row, filters):
     for k, v in filters.items():
-        if str(row.get(k)) != str(v):
-            return False
+        if isinstance(v, (list, tuple, set)):
+            val_strs = {str(x) for x in v}
+            if str(row.get(k)) not in val_strs:
+                return False
+        else:
+            if str(row.get(k)) != str(v):
+                return False
     return True
 
 
-def _select(table, filters=None, limit=None, order=None):
+def _select(table, filters=None, limit=None, order=None, columns="*"):
     """Memory select. Returns list of row dicts (copies)."""
     rows = [dict(r) for r in _rows(table) if not filters or _match(r, filters)]
     if order:
@@ -125,10 +132,21 @@ def _select(table, filters=None, limit=None, order=None):
         rows.sort(key=lambda r: r.get(key) or 0, reverse=desc)
     if limit is not None:
         rows = rows[:limit]
+    if columns and columns != "*":
+        col_list = [c.strip() for c in columns.split(",") if c.strip()]
+        return [{c: r.get(c) for c in col_list} for r in rows]
     return rows
 
 
 def _insert(table, payload):
+    if isinstance(payload, list):
+        out = []
+        for item in payload:
+            row = dict(item)
+            row.setdefault("id", str(uuid.uuid4()))
+            _rows(table).append(row)
+            out.append(dict(row))
+        return out
     row = dict(payload)
     row.setdefault("id", str(uuid.uuid4()))
     _rows(table).append(row)
@@ -161,12 +179,18 @@ def _fail(action, table, exc):
         "Supabase %s on '%s' failed: %s" % (action, table, exc))
 
 
-def gw_select(table, filters=None, limit=None, order=None):
+def gw_select(table, filters=None, limit=None, order=None, columns="*"):
     if _use_db():
         try:
-            q = _db().table(table).select("*")
+            q = _db().table(table).select(columns or "*")
             for k, v in (filters or {}).items():
-                q = q.eq(k, v)
+                if isinstance(v, (list, tuple, set)):
+                    v_list = list(v)
+                    if not v_list:
+                        return []
+                    q = q.in_(k, v_list)
+                else:
+                    q = q.eq(k, v)
             if order:
                 key, desc = order
                 q = q.order(key, desc=desc)
@@ -178,12 +202,45 @@ def gw_select(table, filters=None, limit=None, order=None):
             raise
         except Exception as e:
             _fail("select", table, e)
-    return _select(table, filters, limit, order)
+    return _select(table, filters, limit, order, columns)
+
+
+def gw_parallel_select(query_items):
+    """Execute multiple gw_select queries concurrently using thread pool.
+    
+    query_items: list of (table, filters, limit, order, columns) or dicts with corresponding keys.
+    Returns: list of results in matching order.
+    """
+    if not query_items:
+        return []
+
+    def _worker(q):
+        if isinstance(q, dict):
+            return gw_select(
+                table=q.get("table"),
+                filters=q.get("filters"),
+                limit=q.get("limit"),
+                order=q.get("order"),
+                columns=q.get("columns", "*"),
+            )
+        elif isinstance(q, (list, tuple)):
+            return gw_select(*q)
+        return []
+
+    return list(_query_executor.map(_worker, query_items))
 
 
 def gw_insert(table, payload):
     if _use_db():
         try:
+            if isinstance(payload, list):
+                if not payload:
+                    return []
+                resp = _db().table(table).insert([dict(p) for p in payload]).execute()
+                data = getattr(resp, "data", None) or []
+                if data:
+                    return [dict(d) for d in data]
+                return [dict(p) for p in payload]
             resp = _db().table(table).insert(dict(payload)).execute()
             data = getattr(resp, "data", None) or []
             if data:

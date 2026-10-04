@@ -160,7 +160,7 @@ for idx in (1, 2, 3):
         "question_text": f"VERIFY- Question {idx}?",
         "option_a": "Alpha", "option_b": "Beta", "option_c": "Gamma", "option_d": "Delta",
         "correct_option": "Beta", "explanation": "Verification question",
-        "category": "VERIFY", "duration_seconds": 15
+        "category": "VERIFY", "duration_seconds": 120
     })
     check(f"question {idx} create 201", rq.status_code == 201, rq.status_code)
     q_ids.append(rq.get_json()["question"]["id"])
@@ -255,6 +255,7 @@ check("duplicate submit blocked", r.status_code == 400, r.status_code)
 
 # ---------- multi-round: finish rounds 2-3 ----------
 for n in (2, 3):
+    c.post("/api/admin/games/%s/next" % GID_A)
     r = p.post("/api/game/next")
     check("next -> question (round %d)" % n, r.get_json().get("game_state") == "question",
           r.get_json())
@@ -269,6 +270,7 @@ r = p.post("/api/game/submit", json={"question_id": qq["id"], "option": "x", "ri
 check("risk below min rejected (live)", r.status_code == 400, r.status_code)
 d = p.get("/api/game/current").get_json()
 # after 3/3 rounds the game is complete
+c.post("/api/admin/games/%s/end" % GID_A)
 r = p.post("/api/game/next")
 d = p.get("/api/game/current").get_json()
 check("game completion gameover", d.get("game_state") == "gameover", d)
