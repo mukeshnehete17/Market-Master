@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/tests/frontend_state_consistency.test.mjs"
   },
   "dependencies": {
     "@paper-design/shaders": "0.0.81",

@@ -211,46 +211,80 @@ function MarketDesk({
   }>({ isOpen: false, title: '', message: '', action: () => {}, isDanger: true });
 
   const isMounted = useRef(true);
+  const activeReqId = useRef(0);
+  const abortCtrlRef = useRef<AbortController | null>(null);
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const load = async (gameId?: string, silent = false) => {
-    if (!silent && !deck) setLoading(true);
-    setError('');
+  const load = async (targetGameId: string, silent = false) => {
+    // 1. Abort any previous in-flight request
+    if (abortCtrlRef.current) {
+      abortCtrlRef.current.abort();
+    }
+    const ctrl = new AbortController();
+    abortCtrlRef.current = ctrl;
+
+    const reqId = ++activeReqId.current;
+
+    if (!silent) {
+      setLoading(true);
+      setError('');
+    }
+
     try {
-      const gid = gameId !== undefined ? gameId : selectedGameId;
-      const data = await adminApi.controlDeck(gid || undefined);
-      if (isMounted.current) {
-        setDeck(data.deck);
-        if (data.deck.game && data.deck.game.id !== selectedGameId) {
-          onSelectGame(data.deck.game.id);
-        }
+      const data = await adminApi.controlDeck(targetGameId || undefined, ctrl.signal);
+
+      // Protect against race conditions: ignore if request was superseded or unmounted
+      if (!isMounted.current || reqId !== activeReqId.current || ctrl.signal.aborted) {
+        return;
+      }
+
+      setDeck(data.deck);
+
+      // Authoritative synchronization without flapping:
+      // If no game was initially selected (targetGameId is empty) and backend chose an active game,
+      // synchronize the parent selection once. NEVER overwrite when targetGameId was already explicit.
+      if (!targetGameId && data.deck?.game?.id) {
+        onSelectGame(data.deck.game.id);
       }
     } catch (err: any) {
-      if (isMounted.current && !silent) {
+      if (!isMounted.current || reqId !== activeReqId.current || ctrl.signal.aborted || err?.name === 'AbortError') {
+        return;
+      }
+      if (!silent) {
         setError(err?.message || 'Failed to load control deck.');
       }
     } finally {
-      if (isMounted.current && !silent) setLoading(false);
+      if (isMounted.current && reqId === activeReqId.current) {
+        if (!silent) setLoading(false);
+        // Controlled recursive polling: schedule next poll ONLY after this request finishes
+        if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = setTimeout(() => {
+          if (isMounted.current) {
+            void load(targetGameId, true);
+          }
+        }, 3000);
+      }
     }
   };
 
   useEffect(() => {
     isMounted.current = true;
-    load(selectedGameId);
-
-    // Safe live polling every 3 seconds when desk is open
-    const timer = setInterval(() => {
-      load(selectedGameId, true);
-    }, 3000);
+    // Clear old game data immediately upon game switch so user doesn't see stale Game A data
+    setDeck(null);
+    setLoading(true);
+    setError('');
+    void load(selectedGameId);
 
     return () => {
       isMounted.current = false;
-      clearInterval(timer);
+      if (abortCtrlRef.current) abortCtrlRef.current.abort();
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGameId]);
 
   const runControl = async (op: string, label: string) => {
-    if (!deck?.game?.id) return;
+    if (!deck?.game?.id || actionLoading) return;
     setActionLoading(true);
     setError('');
     setSuccess('');
@@ -271,6 +305,25 @@ function MarketDesk({
 
   if (loading && !deck) return <Loading label="INITIALIZING LIVE CONTROL DECK" />;
 
+  if (error && !deck) {
+    return (
+      <div style={{ ...card, textAlign: 'center', padding: '48px 24px' }}>
+        <div style={{ fontSize: '36px', marginBottom: '14px' }}>⚠️</div>
+        <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '800' }}>Failed to Load Control Deck</h3>
+        <p style={{ margin: '0 0 20px', color: '#dc2626', fontSize: '14px', maxWidth: '440px', marginInline: 'auto' }}>
+          {error}
+        </p>
+        <button
+          type="button"
+          style={btnPrimary}
+          onClick={() => { void load(selectedGameId); }}
+        >
+          🔄 Retry Loading Game
+        </button>
+      </div>
+    );
+  }
+
   if (!deck || !deck.has_game || !deck.game) {
     const liveAvailable = deck?.games_list?.find((item) => item.status === 'live' || item.status === 'paused');
     return (
@@ -288,7 +341,6 @@ function MarketDesk({
               style={{ ...btnPrimary, background: '#16a34a', padding: '10px 22px', fontSize: '13px', boxShadow: '0 4px 12px rgba(22,163,74,0.3)' }}
               onClick={() => {
                 onSelectGame(liveAvailable.id);
-                load(liveAvailable.id);
               }}
             >
               🔥 Switch to Live Game: {liveAvailable.name} (PIN: {liveAvailable.game_pin})
@@ -303,7 +355,6 @@ function MarketDesk({
               value={selectedGameId}
               onChange={(e) => {
                 onSelectGame(e.target.value);
-                load(e.target.value);
               }}
             >
               <option value="">-- Choose Existing Game --</option>
@@ -489,7 +540,6 @@ function MarketDesk({
               value={selectedGameId}
               onChange={(e) => {
                 onSelectGame(e.target.value);
-                load(e.target.value);
               }}
             >
               {deck.games_list.map((item) => (
@@ -506,9 +556,9 @@ function MarketDesk({
               await load(selectedGameId);
               setSuccess('Sync complete — fresh state loaded.');
             }}
-            disabled={actionLoading}
+            disabled={actionLoading || loading}
           >
-            🔄 Sync
+            {loading ? '⏳ Syncing...' : '🔄 Sync'}
           </button>
         </div>
       </div>
@@ -1289,22 +1339,34 @@ function Students() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'participant' });
 
+  const isMounted = useRef(true);
+
   const load = async () => {
     setLoading(true);
     setError('');
     try {
       const params = `?search=${encodeURIComponent(search)}&status=${status}`;
       const data = await adminApi.students(params);
-      setList(data.students);
+      if (isMounted.current) {
+        setList(data.students || []);
+      }
     } catch (err: any) {
-      setError(err?.message || 'Failed to load students.');
+      if (isMounted.current) {
+        setError(err?.message || 'Failed to load students.');
+      }
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
+    isMounted.current = true;
     load();
+    return () => {
+      isMounted.current = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1326,9 +1388,9 @@ function Students() {
       const newStatus = cur === 'active' ? 'disabled' : 'active';
       if (cur === 'active') await adminApi.disableStudent(id);
       else await adminApi.enableStudent(id);
-      setList((prev) => prev.map((s) => (s.id === id ? { ...s, status: newStatus } : s)));
-      if (detail?.id === id) setDetail((prev: any) => (prev ? { ...prev, status: newStatus } : null));
       setSuccessMsg(`Student status updated to ${newStatus}.`);
+      await load();
+      if (detail?.id === id) setDetail((prev: any) => (prev ? { ...prev, status: newStatus } : null));
     } catch (err: any) {
       setError(err?.message || 'Status change failed.');
     } finally {
@@ -1355,18 +1417,13 @@ function Students() {
     setAddLoading(true);
     try {
       const data: any = await adminApi.createStudent(form);
-      const newStudent = data.student || {
-        ...form,
-        id: data.id || `temp-${Date.now()}`,
-        status: 'active',
-        games_played: 0,
-        total_pl: 0,
-        total_score: 0,
-      };
-      setList((prev) => [newStudent, ...prev]);
+      if (!data.student && !data.id) {
+        throw new Error(data.message || 'Student creation failed on server.');
+      }
       setShowAdd(false);
       setForm({ name: '', email: '', password: '', role: 'participant' });
       setSuccessMsg('Student created successfully.');
+      await load();
     } catch (err: any) {
       setError(err?.message || 'Create failed.');
     } finally {
@@ -1501,22 +1558,33 @@ function Questions() {
   const [mutatingId, setMutatingId] = useState<string | null>(null);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({ ...EMPTY_Q });
+  const isMounted = useRef(true);
 
   const load = async () => {
     setLoading(true);
     setError('');
     try {
       const data = await adminApi.questions();
-      setList(data.questions);
+      if (isMounted.current) {
+        setList(data.questions || []);
+      }
     } catch (err: any) {
-      setError(err?.message || 'Failed to load questions.');
+      if (isMounted.current) {
+        setError(err?.message || 'Failed to load questions.');
+      }
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
+    isMounted.current = true;
     load();
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
   const save = async () => {
@@ -1550,19 +1618,16 @@ function Questions() {
     setSaving(true);
     try {
       if (editing) {
-        const res: any = await adminApi.updateQuestion(editing.id, form);
-        const updated = res.question || { ...editing, ...form };
-        setList((prev) => prev.map((q) => (q.id === editing.id ? updated : q)));
+        await adminApi.updateQuestion(editing.id, form);
         setSuccessMsg('Question updated successfully.');
       } else {
-        const res: any = await adminApi.createQuestion(form);
-        const created = res.question || { ...form, id: res.id || `q-${Date.now()}` };
-        setList((prev) => [created, ...prev]);
+        await adminApi.createQuestion(form);
         setSuccessMsg('Question created successfully.');
       }
       setShowAdd(false);
       setEditing(null);
       setForm({ ...EMPTY_Q });
+      await load();
     } catch (err: any) {
       setError(err?.message || 'Save failed.');
     } finally {
@@ -1577,8 +1642,8 @@ function Questions() {
     setSuccessMsg('');
     try {
       await adminApi.archiveQuestion(id);
-      setList((prev) => prev.map((q) => (q.id === id ? { ...q, is_active: false } : q)));
       setSuccessMsg('Question archived successfully.');
+      await load();
     } catch (err: any) {
       setError(err?.message || 'Archive failed.');
     } finally {
@@ -1593,8 +1658,8 @@ function Questions() {
     setSuccessMsg('');
     try {
       await adminApi.deleteQuestion(id);
-      setList((prev) => prev.filter((q) => q.id !== id));
       setSuccessMsg('Question deleted successfully.');
+      await load();
     } catch (err: any) {
       setError(err?.message || 'Delete failed.');
     } finally {
@@ -1777,7 +1842,15 @@ function Questions() {
 
 // ---------------- 5. Games ----------------
 
-function Games({ onOpenDeck }: { onOpenDeck?: (gameId: string) => void }) {
+function Games({
+  onOpenDeck,
+  selectedGameId,
+  onSelectGame,
+}: {
+  onOpenDeck?: (gameId: string) => void;
+  selectedGameId?: string;
+  onSelectGame?: (id: string) => void;
+}) {
   const [list, setList] = useState<any[]>([]);
   const [allQuestions, setAllQuestions] = useState<any[]>([]);
   const [error, setError] = useState('');
@@ -1804,22 +1877,30 @@ function Games({ onOpenDeck }: { onOpenDeck?: (gameId: string) => void }) {
     question_ids: [] as (string | number)[],
   });
 
+  const isMounted = useRef(true);
+
   const load = async (silent = false) => {
     if (!silent && list.length === 0) setLoading(true);
     setError('');
     try {
       const [gData, qData] = await Promise.all([adminApi.games(), adminApi.questions()]);
-      setList(gData.games);
-      setAllQuestions(qData.questions.filter((q: any) => q.is_active));
+      if (isMounted.current) {
+        setList(gData.games || []);
+        setAllQuestions((qData.questions || []).filter((q: any) => q.is_active));
+      }
     } catch (err: any) {
-      if (!silent) setError(err?.message || 'Failed to load games.');
+      if (isMounted.current && !silent) setError(err?.message || 'Failed to load games.');
     } finally {
-      if (!silent) setLoading(false);
+      if (isMounted.current && !silent) setLoading(false);
     }
   };
 
   useEffect(() => {
+    isMounted.current = true;
     load();
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
   const createGame = async () => {
@@ -1841,20 +1922,14 @@ function Games({ onOpenDeck }: { onOpenDeck?: (gameId: string) => void }) {
     setCreating(true);
     try {
       const res: any = await adminApi.createGame(form);
-      const newGame = res.game
-        ? {
-            ...res.game,
-            rounds: res.game.questions ? res.game.questions.length : form.question_ids.length,
-            players: 0,
-          }
-        : {
-            ...form,
-            id: res.id || `g-${Date.now()}`,
-            game_pin: res.game_pin || 'TESTPIN',
-            status: 'draft',
-            rounds: form.question_ids.length,
-            players: 0,
-          };
+      if (!res.game || !res.game.id) {
+        throw new Error(res.message || 'Game creation failed on server.');
+      }
+      const newGame = {
+        ...res.game,
+        rounds: res.game.questions ? res.game.questions.length : form.question_ids.length,
+        players: 0,
+      };
       setList((prev) => [newGame, ...prev]);
       setShowAdd(false);
       setCreatedGame(newGame);
@@ -1867,6 +1942,9 @@ function Games({ onOpenDeck }: { onOpenDeck?: (gameId: string) => void }) {
         default_question_duration: 15,
         question_ids: [],
       });
+      // Synchronize selection and immediately switch to Market Desk (Phase 5 & Final Acceptance Rule)
+      onSelectGame?.(newGame.id);
+      onOpenDeck?.(newGame.id);
     } catch (err: any) {
       setError(err?.message || 'Create game failed.');
     } finally {
@@ -1883,6 +1961,8 @@ function Games({ onOpenDeck }: { onOpenDeck?: (gameId: string) => void }) {
       await adminApi.controlGame(gameId, 'start');
       setList((prev) => prev.map((g) => (g.id === gameId ? { ...g, status: 'live' } : g)));
       setSuccessMsg('Game started successfully!');
+      onSelectGame?.(gameId);
+      onOpenDeck?.(gameId);
     } catch (err: any) {
       setError(err?.message || 'Failed to start game.');
     } finally {
@@ -1897,8 +1977,15 @@ function Games({ onOpenDeck }: { onOpenDeck?: (gameId: string) => void }) {
     setSuccessMsg('');
     try {
       await adminApi.deleteGame(gameId);
-      setList((prev) => prev.filter((g) => g.id !== gameId));
+      const remaining = list.filter((g) => g.id !== gameId);
+      setList(remaining);
       setSuccessMsg(`Game "${gameName}" deleted successfully.`);
+
+      // If the deleted game was selected, update or clear selection (Phase 10)
+      if (gameId === selectedGameId) {
+        const nextGameId = remaining.length > 0 ? remaining[0].id : '';
+        onSelectGame?.(nextGameId);
+      }
     } catch (err: any) {
       setError(err?.message || 'Failed to delete game.');
     } finally {
@@ -2145,13 +2232,18 @@ function Games({ onOpenDeck }: { onOpenDeck?: (gameId: string) => void }) {
 function GamePicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const [games, setGames] = useState<any[]>([]);
   useEffect(() => {
+    const ctrl = new AbortController();
     adminApi
-      .games()
+      .games(ctrl.signal)
       .then((d) => {
-        setGames(d.games);
-        if (d.games.length && !value) onChange(d.games[0].id);
+        if (!ctrl.signal.aborted) {
+          const list = d.games || [];
+          setGames(list);
+          if (list.length && !value) onChange(list[0].id);
+        }
       })
       .catch(() => {});
+    return () => ctrl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
@@ -2159,15 +2251,20 @@ function GamePicker({ value, onChange }: { value: string; onChange: (id: string)
       <option value="">Select game</option>
       {games.map((g) => (
         <option key={g.id} value={g.id}>
-          {g.name} ({g.game_pin}) — {g.status}
+          {g.name} ({g.game_pin}) — {g.status.toUpperCase()}
         </option>
       ))}
     </select>
   );
 }
 
-function Investments({ selectedGameId }: { selectedGameId?: string }) {
-  const [gameId, setGameId] = useState(selectedGameId || '');
+function Investments({
+  selectedGameId,
+  onSelectGame,
+}: {
+  selectedGameId?: string;
+  onSelectGame: (id: string) => void;
+}) {
   const [rows, setRows] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -2176,22 +2273,57 @@ function Investments({ selectedGameId }: { selectedGameId?: string }) {
   const [optionFilter, setOptionFilter] = useState('');
   const [resultFilter, setResultFilter] = useState('');
 
-  useEffect(() => {
-    if (selectedGameId && selectedGameId !== gameId) {
-      setGameId(selectedGameId);
-    }
-  }, [selectedGameId]);
+  const isMounted = useRef(true);
+  const activeReqId = useRef(0);
+  const abortCtrlRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    if (!gameId) return;
+  const loadTrades = (gid: string) => {
+    if (!gid) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+    if (abortCtrlRef.current) abortCtrlRef.current.abort();
+    const ctrl = new AbortController();
+    abortCtrlRef.current = ctrl;
+    const reqId = ++activeReqId.current;
+
+    setRows([]);
     setLoading(true);
     setError('');
+
     adminApi
-      .gameTrades(gameId)
-      .then((d) => setRows(d.trades || []))
-      .catch((err: any) => setError(err?.message || 'Failed to load order book.'))
-      .finally(() => setLoading(false));
-  }, [gameId]);
+      .gameTrades(gid, ctrl.signal)
+      .then((d) => {
+        if (isMounted.current && reqId === activeReqId.current && !ctrl.signal.aborted) {
+          setRows(d.trades || []);
+        }
+      })
+      .catch((err: any) => {
+        if (isMounted.current && reqId === activeReqId.current && !ctrl.signal.aborted && err?.name !== 'AbortError') {
+          setError(err?.message || 'Failed to load order book.');
+        }
+      })
+      .finally(() => {
+        if (isMounted.current && reqId === activeReqId.current && !ctrl.signal.aborted) {
+          setLoading(false);
+        }
+      });
+  };
+
+  useEffect(() => {
+    isMounted.current = true;
+    if (selectedGameId) {
+      loadTrades(selectedGameId);
+    } else {
+      setRows([]);
+      setLoading(false);
+    }
+    return () => {
+      isMounted.current = false;
+      abortCtrlRef.current?.abort();
+    };
+  }, [selectedGameId]);
 
   const filtered = rows.filter((t) => {
     if (roundFilter && String(t.round_number) !== roundFilter) return false;
@@ -2207,7 +2339,7 @@ function Investments({ selectedGameId }: { selectedGameId?: string }) {
   return (
     <div>
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
-        <GamePicker value={gameId} onChange={setGameId} />
+        <GamePicker value={selectedGameId || ''} onChange={onSelectGame} />
         <select
           style={{ ...inputStyle, maxWidth: '140px', marginBottom: '12px' }}
           value={roundFilter}
@@ -2252,7 +2384,7 @@ function Investments({ selectedGameId }: { selectedGameId?: string }) {
         <Loading label="LOADING ORDER BOOK & LOGS" />
       ) : filtered.length === 0 ? (
         <div style={{ ...card, textAlign: 'center', color: '#6b7280' }}>
-          {gameId ? 'No matching orders or trade records found.' : 'Select a game to view orders.'}
+          {selectedGameId ? 'No matching orders or trade records found.' : 'Select a game to view orders.'}
         </div>
       ) : (
         filtered.slice(0, 200).map((t: any, i: number) => (
@@ -2274,39 +2406,75 @@ function Investments({ selectedGameId }: { selectedGameId?: string }) {
 
 // ---------------- 7. Leaderboard ----------------
 
-function Board({ selectedGameId }: { selectedGameId?: string }) {
-  const [gameId, setGameId] = useState(selectedGameId || '');
+function Board({
+  selectedGameId,
+  onSelectGame,
+}: {
+  selectedGameId?: string;
+  onSelectGame: (id: string) => void;
+}) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (selectedGameId && selectedGameId !== gameId) {
-      setGameId(selectedGameId);
-    }
-  }, [selectedGameId]);
+  const isMounted = useRef(true);
+  const activeReqId = useRef(0);
+  const abortCtrlRef = useRef<AbortController | null>(null);
 
   const loadLeaderboard = (gid: string) => {
-    if (!gid) return;
+    if (!gid) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+    if (abortCtrlRef.current) abortCtrlRef.current.abort();
+    const ctrl = new AbortController();
+    abortCtrlRef.current = ctrl;
+    const reqId = ++activeReqId.current;
+
+    setRows([]);
     setLoading(true);
     setError('');
+
     adminApi
-      .gameLeaderboard(gid)
-      .then((d) => setRows(d.leaderboard || []))
-      .catch((err: any) => setError(err?.message || 'Failed to load leaderboard.'))
-      .finally(() => setLoading(false));
+      .gameLeaderboard(gid, ctrl.signal)
+      .then((d) => {
+        if (isMounted.current && reqId === activeReqId.current && !ctrl.signal.aborted) {
+          setRows(d.leaderboard || []);
+        }
+      })
+      .catch((err: any) => {
+        if (isMounted.current && reqId === activeReqId.current && !ctrl.signal.aborted && err?.name !== 'AbortError') {
+          setError(err?.message || 'Failed to load leaderboard.');
+        }
+      })
+      .finally(() => {
+        if (isMounted.current && reqId === activeReqId.current && !ctrl.signal.aborted) {
+          setLoading(false);
+        }
+      });
   };
 
   useEffect(() => {
-    loadLeaderboard(gameId);
-  }, [gameId]);
+    isMounted.current = true;
+    if (selectedGameId) {
+      loadLeaderboard(selectedGameId);
+    } else {
+      setRows([]);
+      setLoading(false);
+    }
+    return () => {
+      isMounted.current = false;
+      abortCtrlRef.current?.abort();
+    };
+  }, [selectedGameId]);
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
-        <GamePicker value={gameId} onChange={setGameId} />
-        {gameId && (
-          <button type="button" style={{ ...btnGhost, padding: '8px 14px', fontSize: '11px' }} onClick={() => loadLeaderboard(gameId)} disabled={loading}>
+        <GamePicker value={selectedGameId || ''} onChange={onSelectGame} />
+        {selectedGameId && (
+          <button type="button" style={{ ...btnGhost, padding: '8px 14px', fontSize: '11px' }} onClick={() => loadLeaderboard(selectedGameId)} disabled={loading}>
             🔄 {loading ? 'Updating...' : 'Refresh Standings'}
           </button>
         )}
@@ -2425,7 +2593,7 @@ function Board({ selectedGameId }: { selectedGameId?: string }) {
           </div>
         </div>
       ) : (
-        gameId && <div style={{ ...card, textAlign: 'center', color: '#6b7280', padding: '32px' }}>No player standings recorded for this game yet.</div>
+        selectedGameId && <div style={{ ...card, textAlign: 'center', color: '#6b7280', padding: '32px' }}>No player standings recorded for this game yet.</div>
       )}
     </div>
   );
@@ -2604,34 +2772,28 @@ export function AdminPanel() {
           ))}
         </div>
 
-        {/* High-Performance Instant Multi-Tab Panel Render — Zero Loading Delay On Navigation */}
-        <div style={{ display: section === 'deck' ? 'block' : 'none' }}>
+        {/* Active Section Panel Render — Lifecycle Controlled, Zero Background Leaks */}
+        {section === 'deck' && (
           <MarketDesk selectedGameId={selectedGameId} onSelectGame={handleSelectGame} />
-        </div>
-        <div style={{ display: section === 'dashboard' ? 'block' : 'none' }}>
-          <Dashboard />
-        </div>
-        <div style={{ display: section === 'students' ? 'block' : 'none' }}>
-          <Students />
-        </div>
-        <div style={{ display: section === 'questions' ? 'block' : 'none' }}>
-          <Questions />
-        </div>
-        <div style={{ display: section === 'games' ? 'block' : 'none' }}>
-          <Games onOpenDeck={handleOpenDeck} />
-        </div>
-        <div style={{ display: section === 'investments' ? 'block' : 'none' }}>
-          <Investments selectedGameId={selectedGameId} />
-        </div>
-        <div style={{ display: section === 'leaderboard' ? 'block' : 'none' }}>
-          <Board selectedGameId={selectedGameId} />
-        </div>
-        <div style={{ display: section === 'audit' ? 'block' : 'none' }}>
-          <AuditLog />
-        </div>
-        <div style={{ display: section === 'settings' ? 'block' : 'none' }}>
-          <Settings />
-        </div>
+        )}
+        {section === 'dashboard' && <Dashboard />}
+        {section === 'students' && <Students />}
+        {section === 'questions' && <Questions />}
+        {section === 'games' && (
+          <Games
+            onOpenDeck={handleOpenDeck}
+            selectedGameId={selectedGameId}
+            onSelectGame={handleSelectGame}
+          />
+        )}
+        {section === 'investments' && (
+          <Investments selectedGameId={selectedGameId} onSelectGame={handleSelectGame} />
+        )}
+        {section === 'leaderboard' && (
+          <Board selectedGameId={selectedGameId} onSelectGame={handleSelectGame} />
+        )}
+        {section === 'audit' && <AuditLog />}
+        {section === 'settings' && <Settings />}
       </div>
     </div>
   );

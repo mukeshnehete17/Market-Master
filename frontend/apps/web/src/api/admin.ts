@@ -2,33 +2,36 @@ import { apiClient } from './client';
 
 const BASE = '/api/admin';
 
-async function get<T>(path: string): Promise<T> {
-  return apiClient<T>(`${BASE}${path}`, { method: 'GET' });
+async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return apiClient<T>(`${BASE}${path}`, { method: 'GET', signal });
 }
 
-async function post<T>(path: string, body?: unknown): Promise<T> {
+async function post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   return apiClient<T>(`${BASE}${path}`, {
     method: 'POST',
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
   });
 }
 
-async function patch<T>(path: string, body: unknown): Promise<T> {
+async function patch<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   return apiClient<T>(`${BASE}${path}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
+    signal,
   });
 }
 
-async function put<T>(path: string, body: unknown): Promise<T> {
+async function put<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   return apiClient<T>(`${BASE}${path}`, {
     method: 'PUT',
     body: JSON.stringify(body),
+    signal,
   });
 }
 
-async function del<T>(path: string): Promise<T> {
-  return apiClient<T>(`${BASE}${path}`, { method: 'DELETE' });
+async function del<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return apiClient<T>(`${BASE}${path}`, { method: 'DELETE', signal });
 }
 
 export interface AdminMetrics {
@@ -126,50 +129,50 @@ export interface ControlDeckData {
 }
 
 export const adminApi = {
-  overview: () => get<{ success: boolean; metrics: AdminMetrics }>('/overview'),
-  controlDeck: (gameId?: string) =>
-    get<{ success: boolean; deck: ControlDeckData }>(`/deck${gameId ? `?game_id=${encodeURIComponent(gameId)}` : ''}`),
-  students: (params = '') =>
-    get<{ success: boolean; students: any[] }>(`/students${params}`),
-  student: (id: string) => get<{ success: boolean; student: any }>(`/students/${id}`),
-  createStudent: (body: unknown) =>
-    post<{ success: boolean; student: any }>('/students', body),
-  updateStudent: (id: string, body: unknown) =>
-    patch<{ success: boolean; student: any }>(`/students/${id}`, body),
-  disableStudent: (id: string) =>
-    post<{ success: boolean; student: any }>(`/students/${id}/disable`),
-  enableStudent: (id: string) =>
-    post<{ success: boolean; student: any }>(`/students/${id}/enable`),
+  overview: (signal?: AbortSignal) => get<{ success: boolean; metrics: AdminMetrics }>('/overview', signal),
+  controlDeck: (gameId?: string, signal?: AbortSignal) =>
+    get<{ success: boolean; deck: ControlDeckData }>(`/deck${gameId ? `?game_id=${encodeURIComponent(gameId)}` : ''}`, signal),
+  students: (params = '', signal?: AbortSignal) =>
+    get<{ success: boolean; students: any[] }>(`/students${params}`, signal),
+  student: (id: string, signal?: AbortSignal) => get<{ success: boolean; student: any }>(`/students/${id}`, signal),
+  createStudent: (body: unknown, signal?: AbortSignal) =>
+    post<{ success: boolean; student: any }>('/students', body, signal),
+  updateStudent: (id: string, body: unknown, signal?: AbortSignal) =>
+    patch<{ success: boolean; student: any }>(`/students/${id}`, body, signal),
+  disableStudent: (id: string, signal?: AbortSignal) =>
+    post<{ success: boolean; student: any }>(`/students/${id}/disable`, undefined, signal),
+  enableStudent: (id: string, signal?: AbortSignal) =>
+    post<{ success: boolean; student: any }>(`/students/${id}/enable`, undefined, signal),
 
-  questions: () => get<{ success: boolean; questions: any[] }>('/questions'),
-  createQuestion: (body: unknown) =>
-    post<{ success: boolean; question: any }>('/questions', body),
-  updateQuestion: (id: string, body: unknown) =>
-    patch<{ success: boolean; question: any }>(`/questions/${id}`, body),
-  archiveQuestion: (id: string) =>
-    post<{ success: boolean; question: any }>(`/questions/${id}/archive`),
-  deleteQuestion: (id: string) =>
-    del<{ success: boolean }>(`/questions/${id}`),
+  questions: (signal?: AbortSignal) => get<{ success: boolean; questions: any[] }>('/questions', signal),
+  createQuestion: (body: unknown, signal?: AbortSignal) =>
+    post<{ success: boolean; question: any }>('/questions', body, signal),
+  updateQuestion: (id: string, body: unknown, signal?: AbortSignal) =>
+    patch<{ success: boolean; question: any }>(`/questions/${id}`, body, signal),
+  archiveQuestion: (id: string, signal?: AbortSignal) =>
+    post<{ success: boolean; question: any }>(`/questions/${id}/archive`, undefined, signal),
+  deleteQuestion: (id: string, signal?: AbortSignal) =>
+    del<{ success: boolean }>(`/questions/${id}`, signal),
 
-  games: () => get<{ success: boolean; games: any[] }>('/games'),
-  game: (id: string) => get<{ success: boolean; game: any }>(`/games/${id}`),
-  createGame: (body: unknown) =>
-    post<{ success: boolean; game: any }>('/games', body),
-  updateGame: (id: string, body: unknown) =>
-    patch<{ success: boolean; game: any }>(`/games/${id}`, body),
-  deleteGame: (id: string) => del<{ success: boolean }>(`/games/${id}`),
-  setGameQuestions: (id: string, question_ids: (string | number)[]) =>
-    put<{ success: boolean; game: any }>(`/games/${id}/questions`, { question_ids }),
-  controlGame: (id: string, op: string) =>
-    post<{ success: boolean; game: any }>(`/games/${id}/${op}`),
-  gameLeaderboard: (id: string) =>
-    get<{ success: boolean; leaderboard: any[] }>(`/games/${id}/leaderboard`),
-  gameTrades: (id: string) =>
-    get<{ success: boolean; trades: any[] }>(`/games/${id}/trades`),
+  games: (signal?: AbortSignal) => get<{ success: boolean; games: any[] }>('/games', signal),
+  game: (id: string, signal?: AbortSignal) => get<{ success: boolean; game: any }>(`/games/${id}`, signal),
+  createGame: (body: unknown, signal?: AbortSignal) =>
+    post<{ success: boolean; game: any }>('/games', body, signal),
+  updateGame: (id: string, body: unknown, signal?: AbortSignal) =>
+    patch<{ success: boolean; game: any }>(`/games/${id}`, body, signal),
+  deleteGame: (id: string, signal?: AbortSignal) => del<{ success: boolean }>(`/games/${id}`, signal),
+  setGameQuestions: (id: string, question_ids: (string | number)[], signal?: AbortSignal) =>
+    put<{ success: boolean; game: any }>(`/games/${id}/questions`, { question_ids }, signal),
+  controlGame: (id: string, op: string, signal?: AbortSignal) =>
+    post<{ success: boolean; game: any }>(`/games/${id}/${op}`, undefined, signal),
+  gameLeaderboard: (id: string, signal?: AbortSignal) =>
+    get<{ success: boolean; leaderboard: any[] }>(`/games/${id}/leaderboard`, signal),
+  gameTrades: (id: string, signal?: AbortSignal) =>
+    get<{ success: boolean; trades: any[] }>(`/games/${id}/trades`, signal),
 
-  settings: () => get<{ success: boolean; settings: any }>('/settings'),
-  updateSettings: (body: unknown) =>
-    patch<{ success: boolean; settings: any }>('/settings', body),
-  actions: (limit = 50) =>
-    get<{ success: boolean; actions: any[] }>(`/actions?limit=${limit}`),
+  settings: (signal?: AbortSignal) => get<{ success: boolean; settings: any }>('/settings', signal),
+  updateSettings: (body: unknown, signal?: AbortSignal) =>
+    patch<{ success: boolean; settings: any }>('/settings', body, signal),
+  actions: (limit = 50, signal?: AbortSignal) =>
+    get<{ success: boolean; actions: any[] }>(`/actions?limit=${limit}`, signal),
 };

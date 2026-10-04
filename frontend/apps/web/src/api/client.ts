@@ -90,8 +90,19 @@ export async function apiClient<T>(
 
     return data as T;
   } catch (error: any) {
+    if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+      const abortErr = new Error('Request aborted');
+      abortErr.name = 'AbortError';
+      throw abortErr;
+    }
     if (error instanceof ApiError) {
+      if ((import.meta as any).env?.DEV) {
+        console.warn(`[API ${options.method || 'GET'}] ${url} -> ${error.status}:`, error.message);
+      }
       throw error;
+    }
+    if ((import.meta as any).env?.DEV) {
+      console.error(`[API Network Error ${options.method || 'GET'}] ${url}:`, error?.message);
     }
     throw new ApiError(
       error?.message || 'Network error. Please check server connection.',
@@ -100,3 +111,4 @@ export async function apiClient<T>(
     );
   }
 }
+

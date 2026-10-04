@@ -111,6 +111,10 @@ export default function App() {
 
   const handleLogout = async () => {
     await logoutUser();
+    try {
+      sessionStorage.removeItem('mm_admin_selected_game_id');
+      sessionStorage.removeItem('mm_admin_section');
+    } catch {}
     setCurrentUser(null);
     setSession(null);
     setActiveTab('game');
